@@ -821,8 +821,8 @@ function setupPanel(...kids) { const v = $("view-setup"); v.textContent = ""; v.
 function screenNoClient() {
   setupPanel(h("h2", { text: "Instalação incompleta" }),
     h("p", { text: "Este app ainda não tem a identificação de login do Google (Client ID)." }),
-    h("ol", { class: "steps" }, h("li", { text: "No seu repositório do GitHub, abra a aba Actions." }), h("li", { text: "Escolha “2. Configurar o login do Google” e toque em Run workflow." }),
-      h("li", { text: "Cole o Client ID criado no Google Cloud e confirme." }), h("li", { text: "Espere uns 2 minutos e recarregue esta página." })),
+    h("ol", { class: "steps" }, h("li", { text: "No seu repositório do GitHub, abra a aba Actions." }), h("li", { text: "Escolha “Instalar ou atualizar o app” e toque em Run workflow." }),
+      h("li", { text: "No campo “Client ID do Google”, cole o ID criado no Google Cloud e confirme." }), h("li", { text: "Espere uns 2 minutos e recarregue esta página." })),
     h("p", { class: "hint" }, "Passo a passo completo no ", h("a", { href: "https://github.com/VPRODC83/gamecatalog-instalador#readme", target: "_blank", rel: "noopener", text: "guia de instalação" }), "."));
 }
 function screenLogin(err) {
