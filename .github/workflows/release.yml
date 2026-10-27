@@ -1,0 +1,57 @@
+# Publica uma versão do app: monta o site, gera o atestado de proveniência e cria a release.
+# Roda só quando o dono cria uma tag v* (ex.: v1.0.0). Os instaladores dos usuários
+# só aceitam o app.zip se o atestado provar que ele saiu DESTE arquivo, neste repositório.
+name: Publicar versão
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write      # criar a release
+  id-token: write      # assinar o atestado (Sigstore)
+  attestations: write  # gravar o atestado no GitHub
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    # trava extra: só o repositório oficial e só tags criadas pelo dono
+    if: github.repository == 'VPRODC83/gamecatalog-app' && github.actor == 'VPRODC83'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+
+      - name: Montar o site
+        run: |
+          set -euo pipefail
+          rm -rf dist && mkdir -p dist
+          cp -r app/. dist/
+          python tools/build_libretro.py dist/data/libretro
+          rm -f dist/config.json
+          printf '{"versao":"%s","commit":"%s","data":"%s"}\n' "$GITHUB_REF_NAME" "$GITHUB_SHA" "$(date -u +%F)" > dist/version.json
+          (cd dist && zip -qr -X ../app.zip .)
+          sha256sum app.zip > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Atestado de proveniência (prova que o app.zip saiu deste workflow)
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: app.zip
+
+      - name: Criar ou atualizar a release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          notes="Versão ${GITHUB_REF_NAME} do Game Catalog. Os instaladores verificam o atestado de proveniência antes de publicar."
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" app.zip SHA256SUMS --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" app.zip SHA256SUMS --title "$GITHUB_REF_NAME" --notes "$notes" --verify-tag
+          fi
