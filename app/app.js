@@ -518,8 +518,8 @@ async function moveKeys(g, ng) {
 
 /* ---------- Compras ---------- */
 function consoleInput(id, value) { return [h("input", { id, value: value || "", list: id + "-list", autocomplete: "off" }), h("datalist", { id: id + "-list" }, data.consoles.map(c => h("option", { value: c })))]; }
-function buyForm(r, want) {
-  const p = "b-", msg = h("p", { class: "status", role: "status" });
+function buyForm(r, want, idx = 0) {
+  const p = "b" + idx + "-", msg = h("p", { class: "status", role: "status" });
   const btn = h("button", { class: "primary", type: "submit", text: "Incluir na lista de compras" });
   const form = h("form", { class: "edit" },
     h("div", { class: "grid2" }, field(p + "console", "Console", ...consoleInput(p + "console", r.console_planilha || (want && want.console) || "")), field(p + "regiao", "Região", h("input", { id: p + "regiao", value: r.regiao || "" }))),
@@ -640,7 +640,7 @@ function buildPrompt() {
   const wanted = data.wanted.map(w => `${w.id}|${w.tab}|${w.console}|${w.nome}|${w.status}`).join("\n");
   const buying = data.buying.map(b => `${b.id}|${b.console}|${b.nome}|${b.regiao}|${b.status}`).join("\n");
   return `Você é um especialista em colecionismo de videogames, incluindo lançamentos brasileiros (Tec Toy, Playtronic, CCE, Dactar, Polivox, Philips Odyssey).
-As imagens são fotos de celular de UM item: jogo, console ou acessório. Se houver duas fotos, a segunda é o verso ou outro ângulo do MESMO item.
+As imagens são fotos de celular de jogos, consoles ou acessórios. UMA FOTO PODE TER VÁRIOS ITENS (ex.: vários cartuchos lado a lado): identifique CADA item visível SEPARADAMENTE, um objeto por item, na ordem em que aparecem (de cima para baixo, da esquerda para a direita), até 24 itens. Nunca junte dois itens num só. Se houver duas fotos, a segunda é o verso ou outro ângulo dos MESMOS itens: use-a para confirmar, sem repetir itens.
 Identifique com precisão: título, plataforma, região, edição. Use formato do cartucho, códigos de produto (SHVC-, SNS-, HVC-, SCUS-, SLUS-, SLES-, CUSA- etc.), idioma, logos.
 Depois compare com as listas do colecionador. Os nomes foram digitados à mão: podem ter erros de grafia, abreviações (MD = Mega Drive, MS = Master System, SFC = Super Famicom, GC = GameCube, X360, XONE...) ou títulos alternativos. Conte como correspondência o mesmo jogo na mesma plataforma; não confunda jogos diferentes da mesma série. SFC/SNES e FAMICOM/NES contam como a mesma família para "já tenho", mas explique a diferença de região em "observacao_match".
 CONSOLES usados na planilha (use um destes códigos em console_planilha, ou crie um no mesmo estilo): ${data.consoles.join(", ")}
@@ -654,63 +654,115 @@ ${wanted || "(vazia)"}
 LISTA DE COMPRAS — id|console|nome|região|status:
 ${buying || "(vazia)"}
 
-Responda SOMENTE com JSON:
-{"identificado": boolean, "tipo": "jogo"|"console"|"acessório"|"outro", "titulo": string|null, "plataforma": string|null, "console_planilha": string|null,
+Responda SOMENTE com JSON no formato {"itens": [ITEM, ...], "observacao_geral": string|null}, em que cada ITEM é:
+{"foto": 1|2 (em qual foto o item aparece melhor), "posicao": [ymin, xmin, ymax, xmax] (caixa do item nessa foto, de 0 a 1000) | null, "identificado": boolean, "tipo": "jogo"|"console"|"acessório"|"outro", "titulo": string|null, "plataforma": string|null, "console_planilha": string|null,
  "fabricante": string|null, "regiao": string|null, "ano": number|null, "modelo_codigo": string|null, "formato": string|null, "estado_aparente": string|null,
  "confianca": "alta"|"média"|"baixa", "pistas": [string], "alternativas": [{"titulo": string, "plataforma": string}], "dica_nova_foto": string|null,
  "ja_tenho": [ids G...], "na_compra": [ids B...], "procurado": [ids W...], "observacao_match": string|null}
-Use listas vazias quando não houver correspondência. Textos em português do Brasil.`;
+Use listas vazias quando não houver correspondência. Se não houver nenhum item reconhecível, responda {"itens": [], "observacao_geral": "motivo"}. Textos em português do Brasil.`;
 }
 $("go").addEventListener("click", async () => {
   const imgs = files.filter(Boolean); if (!imgs.length) return;
-  ctl = new AbortController(); refresh(); $("stop").hidden = false; $("verdict").textContent = ""; $("price").textContent = "";
+  ctl = new AbortController(); refresh(); $("stop").hidden = false; $("verdict").textContent = ""; $("price").textContent = ""; $("result").textContent = ""; itemCtl?.abort();
   setStatus("Analisando a foto e conferindo a planilha… leva de 5 a 40 segundos.");
   try {
     const parts = [{ text: buildPrompt() }];
     for (const f of imgs) { const b = await shrink(f); parts.push({ inline_data: { mime_type: "image/jpeg", data: await blobB64(b) } }); }
     const r = parseJSON((await gemini(parts, { signal: ctl.signal })).text);
-    renderResult(r); renderVerdict(r); lastIdentified = r; setStatus("Pronto.");
-    if (r.identificado !== false && r.titulo) lookupPrice({ titulo: r.titulo, plataforma: r.plataforma, regiao: r.regiao }, $("price"), null);
+    const itens = Array.isArray(r.itens) ? r.itens.filter(x => x && typeof x === "object") : (r.titulo ? [r] : []);
+    lastIdentified = itens[0] || null;
+    setStatus(itens.length > 1 ? `Pronto: ${itens.length} itens na foto.` : "Pronto.");
+    await renderItems(itens, r.observacao_geral);
   } catch (e) { setStatus(e && e.name === "AbortError" ? "Cancelado." : gemMsg(e), !(e && e.name === "AbortError")); }
   finally { ctl = null; $("stop").hidden = true; refresh(); }
 });
 $("stop").addEventListener("click", () => ctl?.abort());
-function renderResult(r) {
+/* Um cartão por item da foto: recorte, etiqueta, veredito e preço de cada um */
+let itemCtl = null;
+async function cropItem(r) {
+  const f = files[(r.foto === 2 && files[1]) ? 1 : 0] || files[1];
+  const p = Array.isArray(r.posicao) && r.posicao.length === 4 ? r.posicao.map(Number) : null;
+  if (!f || !p || p.some(v => !isFinite(v))) return null;
+  try {
+    const bmp = await createImageBitmap(f);
+    let [y0, x0, y1, x1] = p.map(v => Math.min(1000, Math.max(0, v)) / 1000);
+    if (y1 - y0 < 0.03 || x1 - x0 < 0.03) return null;
+    const m = 0.03; y0 = Math.max(0, y0 - m); x0 = Math.max(0, x0 - m); y1 = Math.min(1, y1 + m); x1 = Math.min(1, x1 + m);
+    const sx = x0 * bmp.width, sy = y0 * bmp.height, sw = (x1 - x0) * bmp.width, sh = (y1 - y0) * bmp.height;
+    const k = Math.min(1, 900 / Math.max(sw, sh));
+    const cv = document.createElement("canvas"); cv.width = Math.round(sw * k); cv.height = Math.round(sh * k);
+    cv.getContext("2d").drawImage(bmp, sx, sy, sw, sh, 0, 0, cv.width, cv.height);
+    return await new Promise(res => cv.toBlob(b => res(b), "image/jpeg", 0.88));
+  } catch { return null; }
+}
+function verdictKind(r) {
+  if (r.identificado === false || !data.loaded) return null;
+  if (byId(data.games, r.ja_tenho).length) return "have";
+  if (byId(data.buying, r.na_compra).length) return "buying";
+  if (byId(data.wanted, r.procurado).length) return "want";
+  return "nao";
+}
+async function renderItems(itens, geral) {
   const out = $("result"); out.textContent = "";
+  itemCtl?.abort(); const ctlI = itemCtl = new AbortController();
+  if (!itens.length) { out.append(h("div", { class: "verdict" }, h("h2", { text: "Não encontrei nenhum item na foto" }), geral ? h("p", { class: "hint", text: geral }) : null)); return; }
+  const n = itens.length;
+  if (n > 1) {
+    const cnt = { have: 0, buying: 0, want: 0, nao: 0 }; itens.forEach(r => { const k = verdictKind(r); if (k) cnt[k]++; });
+    out.append(h("div", { class: "verdict" }, h("h2", { text: `${n} itens nesta foto` }),
+      h("p", { text: [cnt.have && `${cnt.have} você já tem`, cnt.want && `${cnt.want} procurado(s)`, cnt.buying && `${cnt.buying} na lista de compras`, cnt.nao && `${cnt.nao} você não tem`].filter(Boolean).join(" · ") || "Veja cada item abaixo." }),
+      geral ? h("p", { class: "hint", text: geral }) : null,
+      h("ol", { class: "itemnav" }, itens.map((r, i) => h("li", {}, h("a", { href: "#item-" + i, text: r.identificado === false ? "não identificado" : (r.titulo || "sem título") }))))));
+  }
+  const autoPrice = [];
+  for (let i = 0; i < n; i++) {
+    const r = itens[i], crop = await cropItem(r), priceBox = h("section", {});
+    out.append(h("article", { class: "item", id: "item-" + i }, n > 1 ? h("p", { class: "eyebrow", text: `Item ${i + 1} de ${n}` }) : null,
+      crop ? h("img", { class: "itemcrop", src: URL.createObjectURL(crop), alt: "Recorte do item " + (i + 1) }) : null,
+      labelNode(r), verdictNode(r, i, crop), priceBox));
+    if (r.identificado !== false && r.titulo) {
+      const pr = { titulo: r.titulo, plataforma: r.plataforma, regiao: r.regiao };
+      if (i < 3) autoPrice.push([pr, priceBox]);
+      else { const b = h("button", { class: "ghost", type: "button", text: "Buscar preço deste item" }); b.addEventListener("click", () => lookupPrice(pr, priceBox, null)); priceBox.append(h("div", { class: "actions" }, b)); }
+    }
+  }
+  // preço automático dos 3 primeiros, um de cada vez, para não estourar o limite gratuito
+  for (const [pr, box] of autoPrice) { if (ctlI.signal.aborted) break; await lookupPrice(pr, box, null); }
+}
+function labelNode(r) {
   const conf = String(r.confianca || "baixa").normalize("NFD").replace(/[̀-ͯ]/g, "");
   const dl = h("dl");
   [["Fabricante", r.fabricante], ["Ano", r.ano], ["Código", r.modelo_codigo], ["Estado", r.estado_aparente]].forEach(([k, v]) => { if (v !== null && v !== undefined && v !== "") dl.append(h("dt", { text: k }), h("dd", { text: String(v) })); });
   const list = (title, items) => items && items.length ? h("div", { class: "block" }, h("h3", { text: title }), h("ul", {}, items.map(t => h("li", { text: t })))) : null;
-  out.append(h("article", { class: "label" }, h("div", { class: "label-top" }, h("span", { text: (r.tipo || "item") + " · " + (r.formato || "") }), h("span", { class: "pill " + conf, text: "confiança " + (r.confianca || "?") })),
+  return (h("article", { class: "label" }, h("div", { class: "label-top" }, h("span", { text: (r.tipo || "item") + " · " + (r.formato || "") }), h("span", { class: "pill " + conf, text: "confiança " + (r.confianca || "?") })),
     h("div", { class: "label-body" }, h("h2", { class: "title", text: r.identificado === false ? "Não foi possível identificar" : (r.titulo || "Sem título") }),
       h("p", { class: "sub", text: [r.plataforma, r.regiao].filter(Boolean).join(" · ") }), dl, list("Por que", r.pistas),
       list("Pode ser também", (r.alternativas || []).map(a => [a.titulo, a.plataforma].filter(Boolean).join(" · "))),
       r.dica_nova_foto ? h("p", { class: "tip", text: "Para confirmar: " + r.dica_nova_foto }) : null)));
 }
 const byId = (arr, ids) => (Array.isArray(ids) ? ids : []).map(id => arr.find(x => x.id === String(id))).filter(Boolean);
-function renderVerdict(r) {
-  const out = $("verdict"); out.textContent = "";
-  if (r.identificado === false) return;
+function verdictNode(r, idx, crop) {
+  if (r.identificado === false) return null;
   const have = byId(data.games, r.ja_tenho), buying = byId(data.buying, r.na_compra), wanted = byId(data.wanted, r.procurado);
   const note = r.observacao_match ? h("p", { class: "hint", text: r.observacao_match }) : null;
   let box;
   if (have.length) {
     const g = have[0], msg = h("p", { class: "status", role: "status" });
     const use = h("button", { class: "ghost", type: "button", text: "Usar esta foto como foto do meu cartucho" });
-    use.addEventListener("click", async () => { use.disabled = true; if (await savePhoto(g, files[0] || files[1], msg, "midia")) { use.textContent = "Foto salva"; msg.textContent = "Foto salva no seu Google Drive."; } else use.disabled = false; });
+    use.addEventListener("click", async () => { use.disabled = true; if (await savePhoto(g, crop || files[0] || files[1], msg, "midia")) { use.textContent = "Foto salva"; msg.textContent = "Foto salva no seu Google Drive."; } else use.disabled = false; });
     box = h("div", { class: "verdict have" }, h("h2", { text: "Você já tem este jogo" }),
       h("ul", { class: "rows" }, have.map(x => h("li", {}, `${x.console} · ${x.nome} · ${x.regiao || "sem região"}`, h("small", { text: `${cfg.colecao.aba}, linha ${x.row}` })))),
-      note, h("div", { class: "actions" }, use), msg, h("details", {}, h("summary", { text: "Quero outra cópia mesmo assim" }), buyForm(r, wanted[0])));
+      note, h("div", { class: "actions" }, use), msg, h("details", {}, h("summary", { text: "Quero outra cópia mesmo assim" }), buyForm(r, wanted[0], idx)));
   } else if (buying.length) {
     box = h("div", { class: "verdict buying" }, h("h2", { text: "Já está na lista de compras" }), h("ul", { class: "rows" }, buying.map(b => h("li", {}, `${b.console} · ${b.nome} · ${b.regiao}`, h("small", { text: `${b.status || "sem status"} · incluído em ${b.data}` })))), note);
   } else if (wanted.length) {
     box = h("div", { class: "verdict want" }, h("h2", { text: "Você não tem, e está na sua lista de procurados" }),
       h("ul", { class: "rows" }, wanted.map(x => h("li", {}, `${x.tab} · ${x.nome}`, h("small", { text: [x.info, x.status ? "Status: " + x.status : "", "linha " + x.row].filter(Boolean).join(" · ") })))),
-      note, h("p", { text: "Quer comprar? Inclua na lista de compras." }), buyForm(r, wanted[0]));
+      note, h("p", { text: "Quer comprar? Inclua na lista de compras." }), buyForm(r, wanted[0], idx));
   } else {
-    box = h("div", { class: "verdict new" }, h("h2", { text: "Você não tem este jogo" }), h("p", { class: "hint", text: "Ele não está na coleção nem nas listas de procurados." }), note, buyForm(r, null));
+    box = h("div", { class: "verdict new" }, h("h2", { text: "Você não tem este jogo" }), h("p", { class: "hint", text: "Ele não está na coleção nem nas listas de procurados." }), note, buyForm(r, null, idx));
   }
-  out.append(box);
+  return box;
 }
 
 /* ---------- Preço ---------- */
