@@ -71,6 +71,15 @@ button:focus-visible, input:focus-visible, select:focus-visible, .chip:focus-wit
 .item { display: flex; flex-direction: column; gap: 12px; padding-top: 6px; scroll-margin-top: 12px; }
 .item + .item { border-top: 3px solid var(--ink); padding-top: 18px; margin-top: 10px; }
 .itemcrop { max-width: 100%; max-height: 240px; align-self: flex-start; border-radius: 8px; border: 1px solid var(--line); object-fit: contain; background: var(--panel); }
+.fix { border: 1px dashed var(--line); border-radius: 12px; padding: 10px 14px; background: var(--panel); display: flex; flex-direction: column; gap: 10px; }
+.fix[open] { gap: 10px; } .fix > * + * { margin-top: 10px; }
+.fix summary { font-weight: 700; }
+.fixres { max-height: 360px; overflow: auto; }
+.fixres li { padding: 0; }
+.fixpick { all: unset; box-sizing: border-box; display: flex; flex-direction: column; gap: 2px; width: 100%; padding: 8px 10px; cursor: pointer; border-radius: 8px; }
+.fixpick b { font-family: var(--body); font-size: .9rem; overflow-wrap: anywhere; }
+.fixpick small { font-family: var(--body); font-size: .78rem; color: var(--muted); }
+.fixpick:hover, .fixpick:focus-visible { background: var(--panel); outline: 2px solid var(--accent); }
 .itemnav { margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 2px; font-size: .9rem; }
 #result { display: flex; flex-direction: column; gap: 14px; }
 .label { background: var(--label); border: 1px solid var(--line); border-radius: 6px 6px 18px 18px; overflow: hidden; }

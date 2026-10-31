@@ -716,30 +716,142 @@ async function renderItems(itens, geral) {
   }
   const autoPrice = [];
   for (let i = 0; i < n; i++) {
-    const r = itens[i], crop = await cropItem(r), priceBox = h("section", {});
-    out.append(h("article", { class: "item", id: "item-" + i }, n > 1 ? h("p", { class: "eyebrow", text: `Item ${i + 1} de ${n}` }) : null,
-      crop ? h("img", { class: "itemcrop", src: URL.createObjectURL(crop), alt: "Recorte do item " + (i + 1) }) : null,
-      labelNode(r), verdictNode(r, i, crop), priceBox));
-    if (r.identificado !== false && r.titulo) {
-      const pr = { titulo: r.titulo, plataforma: r.plataforma, regiao: r.regiao };
-      if (i < 3) autoPrice.push([pr, priceBox]);
-      else { const b = h("button", { class: "ghost", type: "button", text: "Buscar preço deste item" }); b.addEventListener("click", () => lookupPrice(pr, priceBox, null)); priceBox.append(h("div", { class: "actions" }, b)); }
-    }
+    const r = itens[i], crop = await cropItem(r), art = h("article", { class: "item", id: "item-" + i });
+    out.append(art);
+    const job = fillItem(art, r, i, n, crop, i < 3 ? "queue" : "button");
+    if (job) autoPrice.push(job);
   }
   // preço automático dos 3 primeiros, um de cada vez, para não estourar o limite gratuito
   for (const [pr, box] of autoPrice) { if (ctlI.signal.aborted) break; await lookupPrice(pr, box, null); }
+}
+// desenha (ou redesenha, depois de uma escolha manual) o cartão de um item
+function fillItem(art, r, i, n, crop, priceMode) {
+  art.textContent = "";
+  const priceBox = h("section", {});
+  art.append(...[n > 1 ? h("p", { class: "eyebrow", text: `Item ${i + 1} de ${n}` }) : null,
+    crop ? h("img", { class: "itemcrop", src: URL.createObjectURL(crop), alt: "Recorte do item " + (i + 1) }) : null,
+    labelNode(r), fixNode(r, (r2) => { fillItem(art, r2, i, n, crop, "now"); art.scrollIntoView({ block: "start", behavior: "smooth" }); }),
+    verdictNode(r, i, crop), priceBox].filter(Boolean));
+  if (r.identificado === false || !r.titulo) return null;
+  const pr = { titulo: r.titulo, plataforma: r.plataforma, regiao: r.regiao };
+  if (priceMode === "now") { lookupPrice(pr, priceBox, null); return null; }
+  if (priceMode === "queue") return [pr, priceBox];
+  const b = h("button", { class: "ghost", type: "button", text: "Buscar preço deste item" }); b.addEventListener("click", () => lookupPrice(pr, priceBox, null)); priceBox.append(h("div", { class: "actions" }, b));
+  return null;
 }
 function labelNode(r) {
   const conf = String(r.confianca || "baixa").normalize("NFD").replace(/[̀-ͯ]/g, "");
   const dl = h("dl");
   [["Fabricante", r.fabricante], ["Ano", r.ano], ["Código", r.modelo_codigo], ["Estado", r.estado_aparente]].forEach(([k, v]) => { if (v !== null && v !== undefined && v !== "") dl.append(h("dt", { text: k }), h("dd", { text: String(v) })); });
   const list = (title, items) => items && items.length ? h("div", { class: "block" }, h("h3", { text: title }), h("ul", {}, items.map(t => h("li", { text: t })))) : null;
-  return (h("article", { class: "label" }, h("div", { class: "label-top" }, h("span", { text: (r.tipo || "item") + " · " + (r.formato || "") }), h("span", { class: "pill " + conf, text: "confiança " + (r.confianca || "?") })),
+  return (h("article", { class: "label" }, h("div", { class: "label-top" }, h("span", { text: (r.tipo || "item") + " · " + (r.formato || "") }), h("span", { class: "pill " + (r.manual ? "alta" : conf), text: r.manual ? "escolhido por você" : "confiança " + (r.confianca || "?") })),
     h("div", { class: "label-body" }, h("h2", { class: "title", text: r.identificado === false ? "Não foi possível identificar" : (r.titulo || "Sem título") }),
       h("p", { class: "sub", text: [r.plataforma, r.regiao].filter(Boolean).join(" · ") }), dl, list("Por que", r.pistas),
-      list("Pode ser também", (r.alternativas || []).map(a => [a.titulo, a.plataforma].filter(Boolean).join(" · "))),
       r.dica_nova_foto ? h("p", { class: "tip", text: "Para confirmar: " + r.dica_nova_foto }) : null)));
 }
+const FIX = { buyKey: "na_compra", wantedConsole: (w) => w.console, platformOf: (c) => platformOf(c), platLabel: (r) => PLAT_LABEL(r), libretro: (r) => libretro(r) };
+/* ---------- Correção manual da identificação ----------
+   Em cada item: as opções de "Pode ser também" viram botões, e uma busca por nome (ou parte dele)
+   procura na sua planilha (coleção, procurados, compras) e no acervo de nomes do libretro-thumbnails.
+   Ao escolher, o app refaz a conferência com a planilha aqui mesmo, sem chamar a IA de novo. */
+const fixWords = (s) => swords(s);
+function fixScore(q, name) {
+  const a = fixWords(q), b = fixWords(name);
+  if (!a || !b) return 0;
+  if (b === a) return 1;
+  if (b.includes(a)) return 0.9 + 0.05 * (a.length / b.length);   // parte do nome
+  const ta = a.split(" ");
+  if (ta.every(w => b.split(" ").some(x => x.startsWith(w)))) return 0.85;   // todas as palavras, mesmo abreviadas
+  return simW(a, b);
+}
+const famOf = (c) => (FIX.platformOf(c) || norm(c));
+const sameFam = (a, b) => !a || !b || famOf(a) === famOf(b);
+function guessConsole(text) {
+  if (!text) return "";
+  const n = norm(text);
+  const hit = data.consoles.find(c => norm(c) === n); if (hit) return hit;
+  const fam = FIX.platformOf(text) || FIX.platformOf(String(text).replace(/\(.*?\)/g, ""));
+  if (fam) { const c = data.consoles.find(x => FIX.platformOf(x) === fam); if (c) return c; }
+  for (const c of data.consoles) { const r = FIX.platformOf(c); if (r && n.includes(norm(FIX.platLabel(r)).slice(0, 8))) return c; }
+  return "";
+}
+function matchSheets(nome, consoleCode) {
+  const ok = (name, c) => sameFam(consoleCode, c) && fixScore(nome, name) >= 0.88 && fixScore(name, nome) >= 0.6;
+  return {
+    have: data.games.filter(g => ok(g.nome, g.console)).map(g => g.id),
+    buying: data.buying.filter(b => ok(b.nome, b.console)).map(b => b.id),
+    want: data.wanted.filter(w => ok(w.nome, FIX.wantedConsole(w))).map(w => w.id)
+  };
+}
+function pickItem(r, sel) {
+  const m = matchSheets(sel.titulo, sel.console);
+  const uniq = (a) => [...new Set(a.filter(Boolean))];
+  return { ...r, identificado: true, manual: true, tipo: r.tipo || "jogo", titulo: sel.titulo,
+    plataforma: sel.plataforma || (FIX.platformOf(sel.console) ? FIX.platLabel(FIX.platformOf(sel.console)) : sel.console),
+    console_planilha: sel.console || r.console_planilha || "", nome_planilha: String(sel.titulo).toUpperCase(),
+    confianca: "manual", pistas: ["Escolhido por você"], dica_nova_foto: null, observacao_match: null,
+    ja_tenho: uniq([...(sel.ids && sel.ids.have || []), ...m.have]), [FIX.buyKey]: uniq([...(sel.ids && sel.ids.buying || []), ...m.buying]),
+    procurado: uniq([...(sel.ids && sel.ids.want || []), ...m.want]) };
+}
+async function fixSearch(q, consoleCode) {
+  const out = [];
+  const add = (score, titulo, console, onde, ids) => { if (score >= 0.55) out.push({ score, titulo, console, onde, ids }); };
+  data.games.forEach(g => { if (sameFam(consoleCode, g.console)) add(fixScore(q, g.nome) + 0.02, g.nome, g.console, `Na sua coleção · linha ${g.row}`, { have: [g.id] }); });
+  data.wanted.forEach(w => { const c = FIX.wantedConsole(w); if (sameFam(consoleCode, c)) add(fixScore(q, w.nome) + 0.01, w.nome, c, `Procurado · aba ${w.tab}, linha ${w.row}`, { want: [w.id] }); });
+  data.buying.forEach(b => { if (sameFam(consoleCode, b.console)) add(fixScore(q, b.nome) + 0.01, b.nome, b.console, `Na lista de compras · ${b.status || "sem status"}`, { buying: [b.id] }); });
+  const repos = consoleCode ? [FIX.platformOf(consoleCode)].filter(Boolean) : [...new Set(data.consoles.map(c => FIX.platformOf(c)).filter(Boolean))];
+  const seen = new Set();
+  for (const repo of repos) {
+    const idx = await FIX.libretro(repo); if (!idx) continue;
+    const c = consoleCode || data.consoles.find(x => FIX.platformOf(x) === repo) || "";
+    const qa = fixWords(q);
+    idx.base.forEach((b, i) => {
+      const s = fixScore(qa, b); if (s < 0.6) return;
+      const titulo = idx.boxarts[i].replace(/\s*\(.*$/, "").replace(/ _ /g, " / ").trim();
+      const k = repo + "|" + norm(titulo); if (seen.has(k)) return; seen.add(k);
+      out.push({ score: s, titulo, console: c, plataforma: FIX.platLabel(repo), onde: `Acervo de nomes · ${FIX.platLabel(repo)}`, ids: {} });
+    });
+  }
+  out.sort((a, b) => b.score - a.score || a.titulo.length - b.titulo.length);
+  return out.slice(0, 20);
+}
+function fixNode(r, onPick) {
+  const conf = String(r.confianca || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+  const open = r.identificado === false || conf === "baixa";
+  const alts = (r.alternativas || []).filter(a => a && a.titulo);
+  const det = h("details", { class: "fix" }); if (open) det.open = true;
+  const q = h("input", { type: "search", placeholder: "Nome do jogo ou parte dele", "aria-label": "Buscar pelo nome", autocomplete: "off" });
+  const cons = h("select", { "aria-label": "Console" }, h("option", { value: "", text: "Todos os consoles" }), data.consoles.map(c => h("option", { value: c, text: c })));
+  cons.value = guessConsole(r.console_planilha || r.plataforma) || "";
+  const res = h("ul", { class: "rows fixres" }), st = h("p", { class: "status", role: "status" });
+  const typed = h("button", { class: "ghost", type: "button", text: "Usar o nome digitado" });
+  let timer = 0, seq = 0;
+  const run = async () => {
+    const my = ++seq, v = q.value.trim(); res.textContent = "";
+    if (v.length < 2) { st.textContent = ""; return; }
+    st.textContent = "Buscando…";
+    const found = await fixSearch(v, cons.value);
+    if (my !== seq) return;
+    st.textContent = found.length ? `${found.length} resultado(s). Toque para escolher.` : "Nada parecido. Confira o console ou use o nome digitado.";
+    found.forEach(f => {
+      const b = h("button", { class: "fixpick", type: "button" }, h("b", { text: f.titulo }), h("small", { text: [f.console, f.onde].filter(Boolean).join(" · ") }));
+      b.addEventListener("click", () => onPick(pickItem(r, f)));
+      res.append(h("li", {}, b));
+    });
+  };
+  q.addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(run, 250); });
+  cons.addEventListener("change", run);
+  typed.addEventListener("click", () => { const v = q.value.trim(); if (!v) { st.textContent = "Digite o nome primeiro."; q.focus(); return; } onPick(pickItem(r, { titulo: v, console: cons.value })); });
+  det.append(h("summary", { text: r.identificado === false ? "Escolher ou buscar o jogo" : "Não é este? Escolher outro" }),
+    alts.length ? h("div", { class: "block" }, h("h3", { text: "Pode ser também" }), h("div", { class: "gallery" }, alts.map(a => {
+      const b = h("button", { class: "chip", type: "button", text: [a.titulo, a.plataforma].filter(Boolean).join(" · ") });
+      b.addEventListener("click", () => onPick(pickItem(r, { titulo: a.titulo, plataforma: a.plataforma, console: guessConsole(a.plataforma) || cons.value })));
+      return b;
+    }))) : null,
+    h("div", { class: "block" }, h("h3", { text: "Buscar pelo nome" }), h("div", { class: "row" }, q, cons)), st, res, h("div", { class: "actions" }, typed));
+  return det;
+}
+
 const byId = (arr, ids) => (Array.isArray(ids) ? ids : []).map(id => arr.find(x => x.id === String(id))).filter(Boolean);
 function verdictNode(r, idx, crop) {
   if (r.identificado === false) return null;
