@@ -1,6 +1,7 @@
 # Publica uma versão do app: monta o site, gera o atestado de proveniência e cria a release.
 #
 # Automático: todo push do dono no main que mude app/ ou tools/ vira uma versão nova.
+# As marcas abaixo valem no TÍTULO do commit (primeira linha da mensagem).
 #   - número: a última versão + 1 no último dígito (v0.2.0 → v0.2.1);
 #   - "[minor]" na mensagem do commit sobe o do meio (v0.2.1 → v0.3.0);
 #   - "[major]" sobe o primeiro (v0.3.0 → v1.0.0);
@@ -52,7 +53,7 @@ jobs:
           if [ "$GITHUB_REF_TYPE" = "tag" ]; then
             echo "tag=$GITHUB_REF_NAME" >> "$GITHUB_OUTPUT"; echo "auto=nao" >> "$GITHUB_OUTPUT"; exit 0
           fi
-          msg="$(git log -1 --pretty=%B)"
+          msg="$(git log -1 --pretty=%s)"   # as marcas valem só no título do commit (primeira linha)
           if printf '%s' "$msg" | grep -qiE '\[sem vers(ao|ão)\]|\[skip release\]'; then
             echo "pular=sim" >> "$GITHUB_OUTPUT"; echo "Commit marcado com [sem versao]: nada a publicar." >> "$GITHUB_STEP_SUMMARY"; exit 0
           fi

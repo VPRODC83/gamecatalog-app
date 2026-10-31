@@ -42,7 +42,7 @@ O app não tem servidor próprio. Ele roda no navegador e fala direto com:
 
 **É automático.** Todo push seu no `main` que mude `app/` ou `tools/` vira uma versão nova. O workflow **Publicar versão** escolhe o número, monta o `app.zip`, gera o atestado e cria a release com a lista de mudanças. Não é preciso fazer nada além de enviar o código.
 
-| Na mensagem do commit | Efeito |
+| No título do commit (primeira linha) | Efeito |
 | --- | --- |
 | *(nada)* | sobe o último número: `v0.2.0` → `v0.2.1` |
 | `[minor]` | sobe o do meio: `v0.2.1` → `v0.3.0` |
