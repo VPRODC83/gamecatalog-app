@@ -1,14 +1,31 @@
 # Publica uma versão do app: monta o site, gera o atestado de proveniência e cria a release.
-# Roda só quando o dono cria uma tag v* (ex.: v1.0.0). Os instaladores dos usuários
-# só aceitam o app.zip se o atestado provar que ele saiu DESTE arquivo, neste repositório.
+#
+# Automático: todo push do dono no main que mude app/ ou tools/ vira uma versão nova.
+#   - número: a última versão + 1 no último dígito (v0.2.0 → v0.2.1);
+#   - "[minor]" na mensagem do commit sobe o do meio (v0.2.1 → v0.3.0);
+#   - "[major]" sobe o primeiro (v0.3.0 → v1.0.0);
+#   - "[sem versao]" na mensagem não publica nada.
+# Manual: criar a tag v* (pela tela de Releases ou pelo git) também publica.
+#
+# Os instaladores dos usuários só aceitam o app.zip se o atestado provar que ele saiu
+# DESTE arquivo, neste repositório.
 name: Publicar versão
 
 on:
   push:
+    branches: [main]
+    paths: ["app/**", "tools/**", ".github/workflows/release.yml"]
     tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      nivel:
+        description: "Qual parte do número aumentar"
+        type: choice
+        options: [patch, minor, major]
+        default: patch
 
 permissions:
-  contents: write      # criar a release
+  contents: write      # criar a tag e a release
   id-token: write      # assinar o atestado (Sigstore)
   attestations: write  # gravar o atestado no GitHub
 
@@ -18,40 +35,90 @@ concurrency:
 
 jobs:
   release:
-    # trava extra: só o repositório oficial e só tags criadas pelo dono
+    # trava extra: só o repositório oficial e só ações do dono
     if: github.repository == 'VPRODC83/gamecatalog-app' && github.actor == 'VPRODC83'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0   # precisa do histórico e das tags para numerar a versão
+
+      - name: Escolher o número da versão
+        id: v
+        env:
+          NIVEL: ${{ inputs.nivel }}
+        run: |
+          set -euo pipefail
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            echo "tag=$GITHUB_REF_NAME" >> "$GITHUB_OUTPUT"; echo "auto=nao" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          msg="$(git log -1 --pretty=%B)"
+          if printf '%s' "$msg" | grep -qiE '\[sem vers(ao|ão)\]|\[skip release\]'; then
+            echo "pular=sim" >> "$GITHUB_OUTPUT"; echo "Commit marcado com [sem versao]: nada a publicar." >> "$GITHUB_STEP_SUMMARY"; exit 0
+          fi
+          if [ -n "$(git tag --points-at HEAD -l 'v*')" ]; then
+            echo "pular=sim" >> "$GITHUB_OUTPUT"; echo "Este commit já tem versão." >> "$GITHUB_STEP_SUMMARY"; exit 0
+          fi
+          last="$(git tag -l 'v[0-9]*' --sort=-v:refname | head -1)"; last="${last:-v0.0.0}"
+          IFS=. read -r ma mi pa <<< "${last#v}"
+          nivel="${NIVEL:-patch}"
+          printf '%s' "$msg" | grep -qi '\[minor\]' && nivel=minor
+          printf '%s' "$msg" | grep -qi '\[major\]' && nivel=major
+          case "$nivel" in
+            major) ma=$((ma + 1)); mi=0; pa=0 ;;
+            minor) mi=$((mi + 1)); pa=0 ;;
+            *)     pa=$((pa + 1)) ;;
+          esac
+          tag="v${ma}.${mi}.${pa}"
+          {
+            echo "tag=$tag"; echo "auto=sim"; echo "anterior=$last"
+          } >> "$GITHUB_OUTPUT"
+          echo "Versão anterior: $last → nova: $tag ($nivel)"
+
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        if: steps.v.outputs.pular != 'sim'
         with:
           python-version: "3.12"
 
       - name: Montar o site
+        if: steps.v.outputs.pular != 'sim'
+        env:
+          TAG: ${{ steps.v.outputs.tag }}
         run: |
           set -euo pipefail
           rm -rf dist && mkdir -p dist
           cp -r app/. dist/
           python tools/build_libretro.py dist/data/libretro
           rm -f dist/config.json
-          printf '{"versao":"%s","commit":"%s","data":"%s"}\n' "$GITHUB_REF_NAME" "$GITHUB_SHA" "$(date -u +%F)" > dist/version.json
+          printf '{"versao":"%s","commit":"%s","data":"%s"}\n' "$TAG" "$GITHUB_SHA" "$(date -u +%F)" > dist/version.json
           (cd dist && zip -qr -X ../app.zip .)
           sha256sum app.zip > SHA256SUMS
           cat SHA256SUMS
 
       - name: Atestado de proveniência (prova que o app.zip saiu deste workflow)
+        if: steps.v.outputs.pular != 'sim'
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: app.zip
 
       - name: Criar ou atualizar a release
+        if: steps.v.outputs.pular != 'sim'
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.v.outputs.tag }}
+          ANTERIOR: ${{ steps.v.outputs.anterior }}
         run: |
           set -euo pipefail
-          notes="Versão ${GITHUB_REF_NAME} do Game Catalog. Os instaladores verificam o atestado de proveniência antes de publicar."
-          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
-            gh release upload "$GITHUB_REF_NAME" app.zip SHA256SUMS --clobber
+          if [ -n "${ANTERIOR:-}" ] && git rev-parse -q --verify "refs/tags/$ANTERIOR" >/dev/null; then range="$ANTERIOR..$GITHUB_SHA"; else range="$GITHUB_SHA"; fi
+          mudancas="$(git log --no-merges --pretty='- %s' "$range" | head -40)"
+          notes="$(printf 'Versão %s do Game Catalog.\n\nMudanças:\n%s\n\nOs instaladores conferem o atestado de proveniência antes de publicar.' "$TAG" "$mudancas")"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" app.zip SHA256SUMS --clobber
+          elif [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            gh release create "$TAG" app.zip SHA256SUMS --title "$TAG" --notes "$notes" --verify-tag
           else
-            gh release create "$GITHUB_REF_NAME" app.zip SHA256SUMS --title "$GITHUB_REF_NAME" --notes "$notes" --verify-tag
+            # cria a tag no commit atual junto com a release
+            gh release create "$TAG" app.zip SHA256SUMS --title "$TAG" --notes "$notes" --target "$GITHUB_SHA"
           fi
+          echo "## ✅ Versão $TAG publicada" >> "$GITHUB_STEP_SUMMARY"
+          echo "Os instaladores dos usuários pegam esta versão na próxima verificação (a cada 3 horas)." >> "$GITHUB_STEP_SUMMARY"

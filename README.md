@@ -26,7 +26,7 @@ O app não tem servidor próprio. Ele roda no navegador e fala direto com:
 
 ## Segurança das atualizações
 
-1. O workflow [`release.yml`](.github/workflows/release.yml) só roda para tags `v*` criadas pelo dono, e só neste repositório.
+1. O workflow [`release.yml`](.github/workflows/release.yml) só roda para pushes e tags do dono, e só neste repositório.
 2. Ele monta o `app.zip` e gera um **atestado de proveniência** assinado (GitHub Artifact Attestations / Sigstore). O atestado prova que o arquivo saiu deste workflow, deste repositório e deste commit.
 3. O instalador de cada usuário baixa o `app.zip`, confere a soma SHA-256 e roda `gh attestation verify --repo VPRODC83/gamecatalog-app --signer-workflow VPRODC83/gamecatalog-app/.github/workflows/release.yml`. Se a verificação falhar, nada é publicado.
 4. Todas as GitHub Actions usadas estão presas a um commit (SHA), não a uma etiqueta que pode mudar.
@@ -34,18 +34,30 @@ O app não tem servidor próprio. Ele roda no navegador e fala direto com:
 ### Proteções recomendadas neste repositório (Settings)
 
 - **Rules → Rulesets → New branch ruleset** para `main`: bloquear exclusão e force push, exigir pull request (só você aprova).
-- **Rules → Rulesets → New tag ruleset** para `v*`: restringir criação, atualização e exclusão (bypass só para você).
+- **Rules → Rulesets → New tag ruleset** para `v*`: restringir atualização e exclusão. Se restringir também a criação, ponha você e **GitHub Actions** no *bypass*.
 - **Actions → General → Fork pull request workflows**: exigir aprovação para todos os colaboradores externos.
 - Na sua conta: autenticação em dois fatores ligada.
 
 ## Publicar uma versão nova
 
-1. Faça as mudanças em `app/` no `main`.
-2. Crie a tag. No GitHub: **Releases → Draft a new release → Choose a tag → digite `v1.2.3` → Create new tag → Publish release**. Ou, pelo terminal: `git tag v1.2.3 && git push origin v1.2.3`.
-3. O workflow **Publicar versão** monta o `app.zip`, gera o atestado e anexa tudo à release.
-4. Os instaladores dos usuários pegam a versão nova na rotina diária, ou na hora, se a pessoa rodar o workflow à mão.
+**É automático.** Todo push seu no `main` que mude `app/` ou `tools/` vira uma versão nova. O workflow **Publicar versão** escolhe o número, monta o `app.zip`, gera o atestado e cria a release com a lista de mudanças. Não é preciso fazer nada além de enviar o código.
 
-Use versão semântica: `vX.Y.Z`. Mudanças que exijam ação do usuário (novos escopos, nova configuração) pedem uma nota clara na release.
+| Na mensagem do commit | Efeito |
+| --- | --- |
+| *(nada)* | sobe o último número: `v0.2.0` → `v0.2.1` |
+| `[minor]` | sobe o do meio: `v0.2.1` → `v0.3.0` |
+| `[major]` | sobe o primeiro: `v0.3.0` → `v1.0.0` |
+| `[sem versao]` | não publica (para mudanças que ainda não devem ir para os usuários) |
+
+Outras formas, se precisar:
+- **Actions → Publicar versão → Run workflow**, escolhendo patch, minor ou major: publica o `main` atual.
+- Criar a tag à mão (`git tag v1.2.3 && git push origin v1.2.3`, ou pela tela de Releases): publica exatamente essa tag.
+
+Só você dispara: o workflow confere `github.actor == 'VPRODC83'` e o nome do repositório. Pushes de outras pessoas não são aceitos pelo GitHub, porque só você tem escrita, e pull requests de terceiros não disparam a publicação.
+
+Os instaladores dos usuários verificam a cada 3 horas e instalam a versão nova depois de conferir o atestado. Quem quiser na hora pode rodar o workflow de instalação à mão.
+
+> Se você criar um *tag ruleset* restringindo a criação de tags `v*`, inclua **GitHub Actions** na lista de *bypass*. É o workflow que cria as tags automáticas.
 
 ## Desenvolvimento
 
