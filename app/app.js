@@ -595,11 +595,22 @@ function receiveForm(b) {
 
 /* ---------- Gemini ---------- */
 const GEM_MSG = { nokey: "Cadastre a sua chave gratuita do Gemini em Ajustes.", badkey: "A chave do Gemini foi recusada. Confira em Ajustes.", model: "O modelo escolhido não existe mais. Escolha outro em Ajustes → Listar modelos.",
-  rate: "Limite gratuito do Gemini atingido por agora. Tente mais tarde.", json: "A resposta veio num formato inesperado. Tente de novo.", empty: "O Gemini não respondeu. Tente outra foto." };
+  rate: "Limite gratuito do Gemini atingido por agora. Tente mais tarde.",
+  busy: "O Gemini está sobrecarregado neste momento. Isso é do lado do Google, não da sua chave: tente de novo em alguns minutos.", json: "A resposta veio num formato inesperado. Tente de novo.", empty: "O Gemini não respondeu. Tente outra foto." };
 const gemMsg = (e) => ((e && GEM_MSG[e.code]) || "Falha no Gemini.") + (e && e.message && e.code !== "nokey" ? " (Google: " + e.message + ")" : "");
 // Chaves do Gemini: formato antigo "AIza…" ou novo "AQ.…" (desde 2026). Aceita os dois; quem decide é o Google.
 const looksLikeKey = (k) => /^(AIza[0-9A-Za-z_-]{20,}|AQ\.[0-9A-Za-z._-]{20,})$/.test(k) || (k.length >= 30 && !/\s/.test(k));
 // Escolhe um modelo "flash" disponível para esta chave quando o configurado não existe mais
+// outro modelo "flash" para usar quando o atual está sobrecarregado (prefere um diferente do atual)
+async function altModel(key, current) {
+  const r = await fetch("https://generativelanguage.googleapis.com/v1beta/models?pageSize=200", { headers: { "x-goog-api-key": key } });
+  if (!r.ok) return null;
+  const names = ((await r.json()).models || []).filter(m => (m.supportedGenerationMethods || []).includes("generateContent")).map(m => m.name.replace(/^models\//, ""));
+  const ok = names.filter(n => /flash/i.test(n) && !/image|tts|audio|live|embed|thinking|exp/i.test(n) && n !== current);
+  return ok.find(n => !/lite|preview/.test(n)) || ok.find(n => !/preview/.test(n)) || ok[0] || null;
+}
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+const isBusy = (status, m) => status === 503 || status === 500 || /high demand|overloaded|unavailable|try again later/i.test(m || "");
 async function autoModel(key) {
   const r = await fetch("https://generativelanguage.googleapis.com/v1beta/models?pageSize=200", { headers: { "x-goog-api-key": key } });
   if (!r.ok) return null;
@@ -609,16 +620,22 @@ async function autoModel(key) {
   if (pick) LS.set("geminiModel", pick);
   return pick || null;
 }
-async function gemini(parts, opts = {}, retried = false) {
+async function gemini(parts, opts = {}, retried = false, tries = 0, modelOverride = null) {
   const { json = true, search = false, signal } = opts;
   const key = LS.get("geminiKey", ""); if (!key) throw { code: "nokey" };
-  const model = LS.get("geminiModel", DEFAULT_MODEL);
+  const model = modelOverride || LS.get("geminiModel", DEFAULT_MODEL);
   const body = { contents: [{ role: "user", parts }], generationConfig: { temperature: 0.2 } };
   if (json && !search) body.generationConfig.responseMimeType = "application/json";
   if (search) body.tools = [{ google_search: {} }];
   const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, { method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": key }, body: JSON.stringify(body), signal });
   if (!r.ok) { let m = ""; try { m = (await r.json()).error.message; } catch {}
     if (r.status === 404 && !retried && await autoModel(key).catch(() => null)) return gemini(parts, opts, true);
+    // sobrecarga do Google: espera e tenta de novo; na terceira vez, tenta outro modelo gratuito
+    if (isBusy(r.status, m)) {
+      if (tries < 2) { await sleep(tries ? 4000 : 1500); return gemini(parts, opts, retried, tries + 1, modelOverride); }
+      if (!modelOverride) { const alt = await altModel(key, model).catch(() => null); if (alt) return gemini(parts, opts, retried, 2, alt); }
+      throw { code: "busy", status: r.status, message: m };
+    }
     throw { code: r.status === 429 ? "rate" : (r.status === 400 || r.status === 401 || r.status === 403) && /key|credential|auth|permission/i.test(m) ? "badkey" : r.status === 404 ? "model" : "gemini", status: r.status, message: m }; }
   const d = await r.json(), cand = d.candidates && d.candidates[0];
   const text = ((cand && cand.content && cand.content.parts) || []).map(p => p.text || "").join("");
@@ -1211,7 +1228,13 @@ function keyCard() {
     const k = inp.value.trim().replace(/^["']|["']$/g, ""); if (!looksLikeKey(k)) { st.classList.add("err"); st.textContent = "Essa não parece uma chave do Gemini. Ela começa com AQ. (ou AIza, nas chaves antigas) e não tem espaços. Use o botão de copiar da página da chave."; return; }
     LS.set("geminiKey", k); st.classList.remove("err"); st.textContent = "Testando…";
     try { await gemini([{ text: "Responda só com JSON {\"ok\": true}" }]); box.hidden = true; setStatus("Pronto! Tire ou escolha uma foto para começar."); }
-    catch (e) { LS.set("geminiKey", ""); st.classList.add("err"); st.textContent = gemMsg(e); }
+    catch (e) {
+      if (e && (e.code === "busy" || e.code === "rate")) {   // a chave foi aceita; o Google só está ocupado agora
+        box.hidden = true; setStatus("Chave salva! O Gemini está ocupado neste momento; se a identificação falhar, tente de novo em alguns minutos.");
+        return;
+      }
+      LS.set("geminiKey", ""); st.classList.add("err"); st.textContent = gemMsg(e);
+    }
   });
   box.append(h("h2", { text: "Ative a identificação por foto (grátis)" }),
     h("ol", { class: "steps" },
