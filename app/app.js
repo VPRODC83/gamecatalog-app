@@ -595,7 +595,7 @@ function receiveForm(b) {
 
 /* ---------- Gemini ---------- */
 const GEM_MSG = { nokey: "Cadastre a sua chave gratuita do Gemini em Ajustes.", badkey: "A chave do Gemini foi recusada. Confira em Ajustes.", model: "O modelo escolhido não existe mais. Escolha outro em Ajustes → Listar modelos.",
-  rate: "Limite gratuito do Gemini atingido por agora. Tente mais tarde.",
+  rate: "Acabou a cota gratuita do Gemini de hoje nos modelos disponíveis. Ela renova todo dia, por volta das 4h ou 5h da manhã (horário de Brasília). Coleção, Compras e os links de preço continuam funcionando.",
   busy: "O Gemini está sobrecarregado neste momento. Isso é do lado do Google, não da sua chave: tente de novo em alguns minutos.", json: "A resposta veio num formato inesperado. Tente de novo.", empty: "O Gemini não respondeu. Tente outra foto." };
 const gemMsg = (e) => ((e && GEM_MSG[e.code]) || "Falha no Gemini.") + (e && e.message && e.code !== "nokey" ? " (Google: " + e.message + ")" : "");
 // Chaves do Gemini: formato antigo "AIza…" ou novo "AQ.…" (desde 2026). Aceita os dois; quem decide é o Google.
@@ -610,6 +610,28 @@ async function altModel(key, current) {
   return ok.find(n => !/lite|preview/.test(n)) || ok.find(n => !/preview/.test(n)) || ok[0] || null;
 }
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+// a cota gratuita é por modelo e renova à meia-noite do horário do Pacífico
+const quotaDay = () => new Date(Date.now() - 8 * 3600e3).toISOString().slice(0, 10);
+const exhausted = () => { const e = LS.get("geminiEsgotado", {}); return e.dia === quotaDay() ? (e.modelos || []) : []; };
+const markExhausted = (m) => LS.set("geminiEsgotado", { dia: quotaDay(), modelos: [...new Set([...exhausted(), m])] });
+function countUse(model) { const u = LS.get("geminiUso", {}); const d = quotaDay(); const n = u.dia === d ? u : { dia: d, n: 0, por: {} }; n.n++; n.por[model] = (n.por[model] || 0) + 1; LS.set("geminiUso", n); }
+const usage = () => { const u = LS.get("geminiUso", {}); return u.dia === quotaDay() ? u : { n: 0, por: {} }; };
+let modelList = null;
+async function listModels(key) {
+  if (modelList) return modelList;
+  const r = await fetch("https://generativelanguage.googleapis.com/v1beta/models?pageSize=200", { headers: { "x-goog-api-key": key } });
+  if (!r.ok) return [];
+  return (modelList = ((await r.json()).models || []).filter(m => (m.supportedGenerationMethods || []).includes("generateContent")).map(m => m.name.replace(/^models\//, ""))
+    .filter(n => /flash/i.test(n) && !/image|tts|audio|live|embed|thinking|exp/i.test(n)));
+}
+// quando a cota de um modelo acaba, usa outro modelo flash (outro tamanho primeiro: lite ↔ normal)
+async function quotaModel(key, current) {
+  const skip = new Set([...exhausted(), current]);
+  const ok = (await listModels(key)).filter(n => !skip.has(n));
+  const lite = /lite/.test(current);
+  return ok.find(n => lite ? !/lite|preview/.test(n) : /lite/.test(n) && !/preview/.test(n)) || ok.find(n => !/preview/.test(n)) || ok[0] || null;
+}
+let noThinking = LS.get("semThinking", false);
 const isBusy = (status, m) => status === 503 || status === 500 || /high demand|overloaded|unavailable|try again later/i.test(m || "");
 async function autoModel(key) {
   const r = await fetch("https://generativelanguage.googleapis.com/v1beta/models?pageSize=200", { headers: { "x-goog-api-key": key } });
@@ -623,13 +645,23 @@ async function autoModel(key) {
 async function gemini(parts, opts = {}, retried = false, tries = 0, modelOverride = null) {
   const { json = true, search = false, signal } = opts;
   const key = LS.get("geminiKey", ""); if (!key) throw { code: "nokey" };
-  const model = modelOverride || LS.get("geminiModel", DEFAULT_MODEL);
+  let model = modelOverride || LS.get("geminiModel", DEFAULT_MODEL);
+  if (!modelOverride && exhausted().includes(model)) { const alt = await quotaModel(key, model).catch(() => null); if (alt) model = alt; }
   const body = { contents: [{ role: "user", parts }], generationConfig: { temperature: 0.2 } };
+  // pensar o mínimo deixa a resposta muito mais rápida (e gasta menos cota)
+  if (!noThinking) body.generationConfig.thinkingConfig = /(^|-)(3|4|5)\.|latest/.test(model) ? { thinkingLevel: "minimal" } : { thinkingBudget: 0 };
   if (json && !search) body.generationConfig.responseMimeType = "application/json";
   if (search) body.tools = [{ google_search: {} }];
   const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, { method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": key }, body: JSON.stringify(body), signal });
   if (!r.ok) { let m = ""; try { m = (await r.json()).error.message; } catch {}
+    if (r.status === 400 && /thinking/i.test(m) && !noThinking) { noThinking = true; LS.set("semThinking", true); return gemini(parts, opts, retried, tries, modelOverride || model); }
     if (r.status === 404 && !retried && await autoModel(key).catch(() => null)) return gemini(parts, opts, true);
+    // cota do dia esgotada neste modelo: marca e tenta outro modelo gratuito
+    if (r.status === 429 && /quota|exhausted|per day|limit/i.test(m + " RESOURCE_EXHAUSTED")) {
+      markExhausted(model);
+      const alt = await quotaModel(key, model).catch(() => null);
+      if (alt && tries < 4) return gemini(parts, opts, retried, tries + 1, alt);
+    }
     // sobrecarga do Google: espera e tenta de novo; na terceira vez, tenta outro modelo gratuito
     if (isBusy(r.status, m)) {
       if (tries < 2) { await sleep(tries ? 4000 : 1500); return gemini(parts, opts, retried, tries + 1, modelOverride); }
@@ -637,8 +669,9 @@ async function gemini(parts, opts = {}, retried = false, tries = 0, modelOverrid
       throw { code: "busy", status: r.status, message: m };
     }
     throw { code: r.status === 429 ? "rate" : (r.status === 400 || r.status === 401 || r.status === 403) && /key|credential|auth|permission/i.test(m) ? "badkey" : r.status === 404 ? "model" : "gemini", status: r.status, message: m }; }
+  countUse(model);
   const d = await r.json(), cand = d.candidates && d.candidates[0];
-  const text = ((cand && cand.content && cand.content.parts) || []).map(p => p.text || "").join("");
+  const text = ((cand && cand.content && cand.content.parts) || []).filter(p => !p.thought).map(p => p.text || "").join("");
   if (!text) throw { code: "empty", message: (cand && cand.finishReason) || (d.promptFeedback && d.promptFeedback.blockReason) };
   return { text, meta: cand.groundingMetadata };
 }
@@ -669,43 +702,41 @@ function bindShot(i) {
 bindShot(0); bindShot(1);
 document.addEventListener("paste", (e) => { const it = Array.from((e.clipboardData && e.clipboardData.items) || []).find(x => x.type && x.type.startsWith("image/")); const f = it && it.getAsFile(); if (!f) return; e.preventDefault(); setters[files[0] ? 1 : 0](f); });
 
+// Pedido curto: a IA só identifica o que vê. A conferência com a planilha é feita aqui no app (matchItem),
+// então não mandamos a coleção inteira junto: a resposta fica muito mais rápida e gasta menos cota.
 function buildPrompt() {
-  const games = data.games.map(g => `${g.id}|${g.console}|${g.nome}|${g.regiao}`).join("\n");
-  const wanted = data.wanted.map(w => `${w.id}|${w.tab}|${w.console}|${w.nome}|${w.status}`).join("\n");
-  const buying = data.buying.map(b => `${b.id}|${b.console}|${b.nome}|${b.regiao}|${b.status}`).join("\n");
-  return `Você é um especialista em colecionismo de videogames, incluindo lançamentos brasileiros (Tec Toy, Playtronic, CCE, Dactar, Polivox, Philips Odyssey).
-As imagens são fotos de celular de jogos, consoles ou acessórios. UMA FOTO PODE TER VÁRIOS ITENS (ex.: vários cartuchos lado a lado): identifique CADA item visível SEPARADAMENTE, um objeto por item, na ordem em que aparecem (de cima para baixo, da esquerda para a direita), até 24 itens. Nunca junte dois itens num só. Se houver duas fotos, a segunda é o verso ou outro ângulo dos MESMOS itens: use-a para confirmar, sem repetir itens.
-Identifique com precisão: título, plataforma, região, edição. Use formato do cartucho, códigos de produto (SHVC-, SNS-, HVC-, SCUS-, SLUS-, SLES-, CUSA- etc.), idioma, logos.
-Depois compare com as listas do colecionador. Os nomes foram digitados à mão: podem ter erros de grafia, abreviações (MD = Mega Drive, MS = Master System, SFC = Super Famicom, GC = GameCube, X360, XONE...) ou títulos alternativos. Conte como correspondência o mesmo jogo na mesma plataforma; não confunda jogos diferentes da mesma série. SFC/SNES e FAMICOM/NES contam como a mesma família para "já tenho", mas explique a diferença de região em "observacao_match".
-CONSOLES usados na planilha (use um destes códigos em console_planilha, ou crie um no mesmo estilo): ${data.consoles.join(", ")}
-
-COLEÇÃO (jogos que ele JÁ TEM) — id|console|nome|região:
-${games || "(vazia)"}
-
-PROCURADOS — id|aba|console|nome|status:
-${wanted || "(vazia)"}
-
-LISTA DE COMPRAS — id|console|nome|região|status:
-${buying || "(vazia)"}
-
-Responda SOMENTE com JSON no formato {"itens": [ITEM, ...], "observacao_geral": string|null}, em que cada ITEM é:
-{"foto": 1|2 (em qual foto o item aparece melhor), "posicao": [ymin, xmin, ymax, xmax] (caixa do item nessa foto, de 0 a 1000) | null, "identificado": boolean, "tipo": "jogo"|"console"|"acessório"|"outro", "titulo": string|null, "plataforma": string|null, "console_planilha": string|null,
- "fabricante": string|null, "regiao": string|null, "ano": number|null, "modelo_codigo": string|null, "formato": string|null, "estado_aparente": string|null,
- "confianca": "alta"|"média"|"baixa", "pistas": [string], "alternativas": [{"titulo": string, "plataforma": string}], "dica_nova_foto": string|null,
- "ja_tenho": [ids G...], "na_compra": [ids B...], "procurado": [ids W...], "observacao_match": string|null}
-Use listas vazias quando não houver correspondência. Se não houver nenhum item reconhecível, responda {"itens": [], "observacao_geral": "motivo"}. Textos em português do Brasil.`;
+  return `Você é especialista em videogames, incluindo lançamentos brasileiros (Tec Toy, Playtronic, CCE, Dactar, Polivox, Philips Odyssey).
+As fotos são de celular. UMA FOTO PODE TER VÁRIOS ITENS (jogos, consoles, acessórios): identifique CADA item visível separadamente, na ordem em que aparecem (de cima para baixo, da esquerda para a direita), até 24. Se houver duas fotos, a segunda é o verso ou outro ângulo dos MESMOS itens: use-a só para confirmar.
+Use etiqueta, formato do cartucho, códigos de produto (SHVC-, SNS-, HVC-, SCUS-, SLUS-, SLES-, CUSA-…), idioma e logos.
+Códigos de console que o colecionador usa (escolha um em "console", se servir): ${data.consoles.join(", ") || "livre"}
+Responda só com JSON: {"itens":[{"foto":1|2,"posicao":[ymin,xmin,ymax,xmax] de 0 a 1000 ou null,"identificado":bool,"tipo":"jogo"|"console"|"acessório"|"outro","titulo":string|null,"outros_nomes":[string],"plataforma":string|null,"console":string|null,"fabricante":string|null,"regiao":string|null,"ano":number|null,"modelo_codigo":string|null,"formato":string|null,"estado_aparente":string|null,"confianca":"alta"|"média"|"baixa","pistas":[até 3 frases curtas],"alternativas":[{"titulo":string,"plataforma":string}],"dica_nova_foto":string|null}],"observacao_geral":string|null}
+"outros_nomes": títulos alternativos do mesmo jogo (nome japonês, americano, europeu). Textos em português do Brasil.`;
+}
+// confere cada item identificado com a coleção, os procurados e a lista de compras (sem IA)
+function matchItem(r) {
+  if (r.identificado === false || !r.titulo) return { ...r, ja_tenho: [], na_compra: [], procurado: [] };
+  const c = (r.console && data.consoles.find(x => norm(x) === norm(r.console))) || guessConsole(r.console || r.plataforma) || "";
+  const names = [r.titulo, ...(Array.isArray(r.outros_nomes) ? r.outros_nomes : [])].filter(Boolean);
+  const acc = { have: new Set(), buying: new Set(), want: new Set() };
+  names.forEach(n => { const m = matchSheets(n, c); m.have.forEach(x => acc.have.add(x)); m.buying.forEach(x => acc.buying.add(x)); m.want.forEach(x => acc.want.add(x)); });
+  const fam = (id, arr) => { const g = arr.find(x => x.id === id); return g && g.console && c && norm(g.console) !== norm(c) ? g.console : null; };
+  const diff = [...acc.have].map(id => fam(id, data.games)).filter(Boolean);
+  return { ...r, console_planilha: c, nome_planilha: String(r.titulo).toUpperCase(), ja_tenho: [...acc.have], na_compra: [...acc.buying], procurado: [...acc.want],
+    observacao_match: diff.length ? `Na sua planilha o jogo está como ${[...new Set(diff)].join(", ")}; confira se é a mesma versão/região.` : null };
 }
 $("go").addEventListener("click", async () => {
   const imgs = files.filter(Boolean); if (!imgs.length) return;
   ctl = new AbortController(); refresh(); $("stop").hidden = false; $("verdict").textContent = ""; $("price").textContent = ""; $("result").textContent = ""; itemCtl?.abort();
-  setStatus("Analisando a foto e conferindo a planilha… leva de 5 a 40 segundos.");
+  setStatus("Analisando a foto… normalmente leva de 3 a 15 segundos.");
+  const t0 = Date.now();
   try {
     const parts = [{ text: buildPrompt() }];
-    for (const f of imgs) { const b = await shrink(f); parts.push({ inline_data: { mime_type: "image/jpeg", data: await blobB64(b) } }); }
+    for (const f of imgs) { const b = await shrink(f, 1024, 0.8); parts.push({ inline_data: { mime_type: "image/jpeg", data: await blobB64(b) } }); }
     const r = parseJSON((await gemini(parts, { signal: ctl.signal })).text);
-    const itens = Array.isArray(r.itens) ? r.itens.filter(x => x && typeof x === "object") : (r.titulo ? [r] : []);
+    const itens = (Array.isArray(r.itens) ? r.itens.filter(x => x && typeof x === "object") : (r.titulo ? [r] : [])).map(matchItem);
     lastIdentified = itens[0] || null;
-    setStatus(itens.length > 1 ? `Pronto: ${itens.length} itens na foto.` : "Pronto.");
+    const secs = Math.round((Date.now() - t0) / 1000);
+    setStatus((itens.length > 1 ? `Pronto: ${itens.length} itens na foto` : "Pronto") + ` em ${secs} s. Consultas ao Gemini hoje: ${usage().n}.`);
     await renderItems(itens, r.observacao_geral);
   } catch (e) { setStatus(e && e.name === "AbortError" ? "Cancelado." : gemMsg(e), !(e && e.name === "AbortError")); }
   finally { ctl = null; $("stop").hidden = true; refresh(); }
@@ -768,9 +799,8 @@ function fillItem(art, r, i, n, crop, priceMode) {
     verdictNode(r, i, crop), priceBox].filter(Boolean));
   if (r.identificado === false || !r.titulo) return null;
   const pr = { titulo: r.titulo, plataforma: r.plataforma, regiao: r.regiao };
-  if (priceMode === "now") { lookupPrice(pr, priceBox, null); return null; }
-  if (priceMode === "queue") return [pr, priceBox];
-  const b = h("button", { class: "ghost", type: "button", text: "Buscar preço deste item" }); b.addEventListener("click", () => lookupPrice(pr, priceBox, null)); priceBox.append(h("div", { class: "actions" }, b));
+  if (priceMode === "queue" && LS.get("tavilyKey", "")) return [pr, priceBox];
+  lookupPrice(pr, priceBox, null, priceMode === "now" ? "auto" : "links");
   return null;
 }
 function labelNode(r) {
@@ -810,7 +840,7 @@ function guessConsole(text) {
   return "";
 }
 function matchSheets(nome, consoleCode) {
-  const ok = (name, c) => sameFam(consoleCode, c) && fixScore(nome, name) >= 0.88 && fixScore(name, nome) >= 0.6;
+  const ok = (name, c) => sameFam(consoleCode, c) && fixScore(nome, name) >= 0.82 && fixScore(name, nome) >= 0.6;
   return {
     have: data.games.filter(g => ok(g.nome, g.console)).map(g => g.id),
     buying: data.buying.filter(b => ok(b.nome, b.console)).map(b => b.id),
@@ -911,29 +941,61 @@ function verdictNode(r, idx, crop) {
   return box;
 }
 
-/* ---------- Preço ---------- */
-const BR_STORES = [
-  { loja: "Mercado Livre", d: ["mercadolivre.com.br"] }, { loja: "Shopee", d: ["shopee.com.br"] }, { loja: "OLX", d: ["olx.com.br"] }, { loja: "Enjoei", d: ["enjoei.com.br"] },
-  { loja: "Varejistas", d: ["amazon.com.br", "magazineluiza.com.br", "americanas.com.br", "kabum.com.br", "casasbahia.com.br"] }, { loja: "Lojas de games", d: null }
-];
-async function tavily(query, domains, signal) {
+/* ---------- Preço ----------
+   Sem gastar Gemini por padrão:
+   1. links diretos para as buscas nas lojas (sempre, na hora);
+   2. com a chave gratuita do Tavily: anúncios buscados e médias calculadas aqui no app (sem IA);
+   3. "Analisar com IA": uma consulta do Gemini com busca do Google, só quando você pedir. */
+const searchQ = (r) => `${r.titulo} ${r.plataforma || ""}`.replace(/\s+/g, " ").trim();
+function priceLinks(r) {
+  const q = searchQ(r), e = encodeURIComponent(q), slug = encodeURIComponent(swords(q).replace(/ /g, "-"));
+  const L = [["Mercado Livre", `https://lista.mercadolivre.com.br/${slug}`], ["OLX", `https://www.olx.com.br/brasil?q=${e}`], ["Shopee", `https://shopee.com.br/search?keyword=${e}`],
+    ["Enjoei", `https://www.enjoei.com.br/s?q=${e}`], ["PriceCharting", `https://www.pricecharting.com/search-products?type=prices&q=${encodeURIComponent(r.titulo)}`], ["eBay (vendidos)", `https://www.ebay.com/sch/i.html?_nkw=${e}&LH_Sold=1&LH_Complete=1`]];
+  return h("div", { class: "block" }, h("h3", { text: "Ver anúncios agora" }), h("div", { class: "gallery" }, L.map(([t, u]) => h("a", { class: "chip", href: u, target: "_blank", rel: "noopener", text: t }))));
+}
+async function tavilyRaw(query, domains, signal) {
   const r = await fetch("https://api.tavily.com/search", { method: "POST", signal, headers: { "Content-Type": "application/json", Authorization: "Bearer " + LS.get("tavilyKey", "") },
-    body: JSON.stringify({ query, search_depth: "basic", max_results: 8, ...(domains ? { include_domains: domains } : {}) }) });
+    body: JSON.stringify({ query, search_depth: "basic", max_results: 10, ...(domains ? { include_domains: domains } : {}) }) });
   if (!r.ok) throw { code: "tavily", status: r.status };
-  return ((await r.json()).results || []).map(x => `URL: ${x.url}\nTÍTULO: ${x.title || ""}\n${String(x.content || "").slice(0, 1200)}`).join("\n---\n") || "(nenhum resultado)";
+  return (await r.json()).results || [];
+}
+const STORE = [[/mercadoli[vb]re/, "Mercado Livre"], [/olx\./, "OLX"], [/shopee/, "Shopee"], [/enjoei/, "Enjoei"], [/amazon/, "Amazon"], [/magazineluiza|magalu/, "Magalu"], [/americanas/, "Americanas"], [/kabum/, "KaBuM!"], [/casasbahia/, "Casas Bahia"]];
+const storeOf = (u) => { try { const host = new URL(u).hostname; return (STORE.find(([re]) => re.test(host)) || [, host.replace(/^www\./, "")])[1]; } catch { return "?"; } };
+const parseBRL = (t) => [...String(t || "").matchAll(/R\$\s*(\d{1,3}(?:\.\d{3})+|\d+)(?:,(\d{2}))?/g)].map(m => Number(m[1].replace(/\./g, "") + "." + (m[2] || "00"))).filter(v => v >= 10 && v <= 30000);
+const REPRO = /repro|r[ée]plica|paralel|fan ?made|c[oó]pia|reprodu|gravad|everdrive|flash ?cart|\bpatch\b|traduzid|bootleg/i;
+const OUTRO = /\b(console|controle|joystick|lote|kit|cole[cç][aã]o de jogos|aluguel|troco|troca)\b/i;
+// lê os resultados do Tavily e monta os anúncios sem IA (regras simples; é uma estimativa)
+function adsFromResults(results, r) {
+  const ads = [], name = r.titulo;
+  for (const x of results) {
+    const title = String(x.title || ""), text = title + " " + String(x.content || "");
+    if (fixScore(name, title) < 0.55 && fixScore(name, String(x.content || "").slice(0, 300)) < 0.55) continue;
+    if (/lista\.mercadoli|\/busca|\/search|[?&](q|keyword)=/.test(x.url || "")) continue;   // páginas de busca têm preços de vários itens
+    const prices = parseBRL(title).length ? parseBRL(title) : parseBRL(x.content);
+    if (!prices.length) continue;
+    ads.push({ loja: storeOf(x.url), titulo: title.slice(0, 120), url: x.url, preco_brl: prices[0],
+      tipo: REPRO.test(text) ? "repro" : OUTRO.test(title) ? "outro" : "original",
+      condicao: /lacrad|sealed|\bnovo\b/i.test(text) ? "lacrado" : /complet|\bcib\b|caixa|manual|\bbox\b/i.test(text) ? "completo" : "solto" });
+  }
+  return ads;
+}
+function pricechartingFrom(results, r) {
+  for (const x of results) {
+    if (!/pricecharting\.com/.test(x.url || "") || fixScore(r.titulo, x.title || "") < 0.5) continue;
+    const t = String(x.content || "");
+    const g = (re) => { const m = re.exec(t); return m ? Number(m[1].replace(/,/g, "")) : null; };
+    const loose = g(/Loose(?: Price)?[^$\d]{0,25}\$\s?([\d,]+\.\d{2})/i), cib = g(/(?:Complete|CIB)(?: Price)?[^$\d]{0,25}\$\s?([\d,]+\.\d{2})/i), novo = g(/New(?: Price)?[^$\d]{0,25}\$\s?([\d,]+\.\d{2})/i);
+    if (loose || cib || novo) return { loose_usd: loose, cib_usd: cib, novo_usd: novo, url: x.url };
+  }
+  return { url: null };
+}
+async function dollar() {
+  try { const d = await (await fetch("https://economia.awesomeapi.com.br/json/last/USD-BRL")).json(); const v = Number(d.USDBRL && d.USDBRL.bid); return v > 0 ? { usd_brl: v, fonte: "AwesomeAPI" } : {}; } catch { return {}; }
 }
 const PRICE_RULES = (name, plat, reg) => `Hoje é ${today()}. Item de coleção: "${name}" — plataforma ${plat || "?"}, região ${reg || "?"}.
-Regras:
-- Mundo: PriceCharting da versão certa (Super Famicom ≠ Super Nintendo ≠ PAL; Famicom ≠ NES): loose (só cartucho/disco), CIB (completo), novo (lacrado), em dólares; e a mediana das vendas concluídas do eBay, se houver.
-- Brasil: liste CADA anúncio individual com preço em reais deste mesmo jogo nesta mesma plataforma (até 40), de Mercado Livre, Shopee, OLX, Enjoei, Amazon, Magalu, Americanas, KaBuM!, Casas Bahia e lojas de games.
-  tipo = "original", "repro" (repro, réplica, paralelo, fan made, mídia gravada), "outro" (outro jogo, console, acessório, coletânea, outra plataforma) ou "duvida";
-  condicao = "solto", "completo", "lacrado" ou "?". Use o preço total à vista. Não invente anúncios nem valores: só o que aparece nas fontes.
-- Cotação: o dólar comercial mais recente.
-Responda só com JSON:
-{"mundo":{"loose_usd":número|null,"cib_usd":número|null,"novo_usd":número|null,"ebay_usd":número|null,"url":string|null,"observacao":string|null},
- "cotacao":{"usd_brl":número|null,"fonte":string|null,"data":string|null},
- "anuncios":[{"loja":string,"titulo":string,"url":string,"preco_brl":número,"tipo":"original"|"repro"|"outro"|"duvida","condicao":"solto"|"completo"|"lacrado"|"?"}],
- "observacao":string|null}`;
+Pesquise na web anúncios à venda no Brasil (Mercado Livre, Shopee, OLX, Enjoei, varejistas, lojas de games) e o PriceCharting.
+Liste cada anúncio individual com preço em reais deste jogo nesta plataforma (até 25): tipo = "original", "repro", "outro" ou "duvida"; condicao = "solto", "completo", "lacrado" ou "?". Não invente: só o que aparece nas fontes.
+Responda só com JSON: {"mundo":{"loose_usd":número|null,"cib_usd":número|null,"novo_usd":número|null,"url":string|null},"cotacao":{"usd_brl":número|null,"fonte":string|null},"anuncios":[{"loja":string,"titulo":string,"url":string,"preco_brl":número,"tipo":string,"condicao":string}],"observacao":string|null}`;
 function summarize(ads) {
   const ok = (ads || []).filter(a => a && typeof a.preco_brl === "number" && a.preco_brl > 0 && a.tipo === "original");
   const m0 = median(ok.map(a => a.preco_brl));
@@ -942,34 +1004,52 @@ function summarize(ads) {
   const by = (f) => { const o = {}; used.forEach(a => (o[f(a)] ||= []).push(a.preco_brl)); return Object.fromEntries(Object.entries(o).map(([k, v]) => [k, stat(v)])); };
   return { geral: stat(used.map(a => a.preco_brl)), cond: by(a => a.condicao || "?"), loja: by(a => a.loja || "?"), usados: used, descartados: (ads || []).length - used.length };
 }
-function priceShell(target, ...kids) { target.textContent = ""; const box = h("div", { class: "price" }, h("h2", { text: "Preço atual" }), ...kids); target.append(box); return box; }
+function priceShell(target, ...kids) { target.textContent = ""; const box = h("div", { class: "price" }, h("h2", { text: "Preço" }), ...kids); target.append(box); return box; }
 const priceCtls = new WeakMap();
-async function lookupPrice(r, target, key) {
+function aiButton(r, target, key) {
+  const b = h("button", { class: "ghost", type: "button", text: "Analisar preços com IA (usa 1 consulta do Gemini)" });
+  b.addEventListener("click", () => lookupPrice(r, target, key, "ia"));
+  return b;
+}
+// mode: "auto" = links + Tavily (se houver chave); "ia" = uma consulta do Gemini com busca do Google
+async function lookupPrice(r, target, key, mode = "auto") {
   priceCtls.get(target)?.abort(); const c = new AbortController(); priceCtls.set(target, c);
-  const useTav = !!LS.get("tavilyKey", ""), name = r.titulo, plat = r.plataforma || "";
-  const msg = h("p", { class: "status", role: "status", text: useTav ? "Pesquisando nas lojas pelo Tavily…" : "Pesquisando nas lojas pela busca do Google no Gemini…" });
-  const stop = h("button", { class: "ghost", type: "button", text: "Parar" }); stop.addEventListener("click", () => c.abort());
-  priceShell(target, msg, h("div", { class: "actions" }, stop));
-  try {
-    let p, fontes = [];
-    if (useTav) {
-      const jobs = [tavily(`${name} ${plat} pricecharting`, ["pricecharting.com", "ebay.com"], c.signal), tavily("cotação dólar comercial hoje", null, c.signal),
-        ...BR_STORES.map(s => tavily(`${name} ${plat} ${s.d ? "" : "original loja games"}`.trim(), s.d, c.signal))];
-      const txt = (await Promise.allSettled(jobs)).map(x => x.status === "fulfilled" ? x.value : "(busca falhou)");
-      msg.textContent = "Lendo os anúncios…";
-      p = parseJSON((await gemini([{ text: PRICE_RULES(name, plat, r.regiao) + `\n\nTRECHOS — PRICECHARTING / EBAY:\n${txt[0]}\n\nTRECHOS — DÓLAR:\n${txt[1]}\n\n` + BR_STORES.map((s, i) => `TRECHOS — ${s.loja.toUpperCase()}:\n${txt[i + 2]}`).join("\n\n") }], { signal: c.signal })).text);
-    } else {
-      const g = await gemini([{ text: PRICE_RULES(name, plat, r.regiao) + "\nPesquise na web (busque cada loja: site:mercadolivre.com.br, site:shopee.com.br, site:olx.com.br, site:enjoei.com.br, varejistas, pricecharting.com e ebay.com) antes de responder." }], { search: true, signal: c.signal });
-      p = parseJSON(g.text);
-      fontes = ((g.meta && g.meta.groundingChunks) || []).map(x => x.web).filter(Boolean).slice(0, 8);
+  const hasTav = !!LS.get("tavilyKey", "");
+  if ((mode === "auto" && !hasTav) || mode === "links" || mode === "auto-links") {
+    if (mode === "links" && hasTav) {
+      const b = h("button", { class: "ghost", type: "button", text: "Calcular médias (Tavily)" }); b.addEventListener("click", () => lookupPrice(r, target, key, "auto"));
+      priceShell(target, priceLinks(r), h("div", { class: "actions" }, b, aiButton(r, target, key))); return;
     }
-    const result = { ...p, consulta: new Date().toISOString(), fontes };
+    priceShell(target, priceLinks(r), h("p", { class: "hint", text: "Para ver médias calculadas sem gastar o Gemini, cadastre a chave grátis do Tavily em Ajustes." }), h("div", { class: "actions" }, aiButton(r, target, key)));
+    return;
+  }
+  const msg = h("p", { class: "status", role: "status", text: mode === "ia" ? "Pesquisando com o Gemini e a busca do Google… pode levar até 30 segundos." : "Buscando anúncios…" });
+  const stop = h("button", { class: "ghost", type: "button", text: "Parar" }); stop.addEventListener("click", () => c.abort());
+  priceShell(target, priceLinks(r), msg, h("div", { class: "actions" }, stop));
+  try {
+    let p;
+    if (mode === "ia") {
+      const g = await gemini([{ text: PRICE_RULES(r.titulo, r.plataforma, r.regiao) }], { search: true, signal: c.signal });
+      p = { ...parseJSON(g.text), fontes: ((g.meta && g.meta.groundingChunks) || []).map(x => x.web).filter(Boolean).slice(0, 8), metodo: "ia" };
+      if (!(p.cotacao && p.cotacao.usd_brl)) p.cotacao = await dollar();
+    } else {
+      const q = searchQ(r);
+      const [mk, lojas, pc, cot] = await Promise.all([
+        tavilyRaw(q, ["mercadolivre.com.br", "olx.com.br", "shopee.com.br", "enjoei.com.br"], c.signal).catch(() => []),
+        tavilyRaw(q + " original", ["amazon.com.br", "magazineluiza.com.br", "americanas.com.br", "kabum.com.br", "casasbahia.com.br"], c.signal).catch(() => []),
+        tavilyRaw(`${r.titulo} ${r.plataforma || ""} pricecharting`, ["pricecharting.com"], c.signal).catch(() => []),
+        dollar()]);
+      if (!mk.length && !lojas.length && !pc.length) throw { code: "tavily" };
+      p = { mundo: pricechartingFrom(pc, r), cotacao: cot, anuncios: adsFromResults([...mk, ...lojas], r), metodo: "tavily",
+        observacao: "Estimativa calculada no app a partir dos anúncios encontrados (sem IA). Confira os anúncios antes de comprar ou vender." };
+    }
+    const result = { ...p, consulta: new Date().toISOString() };
     renderPrice(result, target, r, key);
     if (key) savePrice(key, result).catch(() => {});
   } catch (e) {
-    if (e && e.name === "AbortError") { target.textContent = ""; return; }
-    const retry = h("button", { class: "ghost", type: "button", text: "Buscar preço" }); retry.addEventListener("click", () => lookupPrice(r, target, key));
-    priceShell(target, h("p", { class: "status err", text: e && e.code === "tavily" ? "O Tavily recusou a busca (chave ou limite). Confira em Ajustes." : gemMsg(e) }), h("div", { class: "actions" }, retry));
+    if (e && e.name === "AbortError") { lookupPrice(r, target, key, "auto-links"); return; }
+    priceShell(target, priceLinks(r), h("p", { class: "status err", text: e && e.code === "tavily" ? "O Tavily não respondeu (chave, limite mensal ou internet). Use os links acima." : gemMsg(e) }),
+      h("div", { class: "actions" }, mode === "ia" ? null : aiButton(r, target, key)));
   }
 }
 async function savePrice(key, result) {
@@ -986,26 +1066,25 @@ function renderPrice(p, target, r, key) {
   const conv = (v) => rate && typeof v === "number" ? brl(v * rate) : "";
   const prow = (label, v) => h("div", { class: "prow" }, h("span", { text: label }), h("div", {}, h("b", { text: conv(v) || usd(v) }), conv(v) ? h("small", { text: " " + usd(v) }) : null));
   const srow = (label, st) => h("div", { class: "prow" }, h("span", { text: `${label}${st ? " · " + st.n : ""}` }), h("div", {}, h("b", { text: st ? brl(st.med) : "—" }), st && st.n > 1 ? h("small", { text: ` ${brl(st.min)}–${brl(st.max)}` }) : null));
-  const world = h("div", { class: "pbox" }, h("h3", { text: "Mundo · PriceCharting / eBay" }), prow("Solto", m.loose_usd), prow("Completo (CIB)", m.cib_usd), prow("Lacrado", m.novo_usd), typeof m.ebay_usd === "number" ? prow("eBay (vendidos)", m.ebay_usd) : null);
+  const hasWorld = [m.loose_usd, m.cib_usd, m.novo_usd].some(v => typeof v === "number");
+  const world = hasWorld ? h("div", { class: "pbox" }, h("h3", { text: "Mundo · PriceCharting" }), prow("Solto", m.loose_usd), prow("Completo (CIB)", m.cib_usd), prow("Lacrado", m.novo_usd)) : null;
   const br = h("div", { class: "pbox" }, h("h3", { text: "Brasil · mediana dos anúncios" }), srow("Geral", s.geral), ...["solto", "completo", "lacrado", "?"].filter(k => s.cond[k]).map(k => srow(COND[k], s.cond[k])),
-    s.geral ? null : h("p", { class: "hint", text: "Nenhum anúncio de jogo original com preço nos resultados." }));
-  const lojas = Object.entries(s.loja).sort((a, b) => b[1].n - a[1].n);
+    s.geral ? null : h("p", { class: "hint", text: "Nenhum anúncio de jogo original com preço nos resultados. Veja os links acima." }));
   const ads = s.usados.slice().sort((a, b) => a.preco_brl - b.preco_brl).slice(0, 12).map(a => h("li", {}, h("a", { href: a.url, target: "_blank", rel: "noopener", text: `${brl(a.preco_brl)} · ${a.loja || "?"} · ${COND[a.condicao] || "?"}` }), h("small", { text: " " + (a.titulo || "") })));
   const links = [...(m.url ? [{ uri: m.url, title: "PriceCharting" }] : []), ...(p.fontes || [])].map(f => h("li", {}, h("a", { href: f.uri, target: "_blank", rel: "noopener", text: f.title || f.uri })));
-  const again = h("button", { class: "ghost", type: "button", text: "Atualizar preço" }); again.addEventListener("click", () => lookupPrice(r, target, key));
-  priceShell(target, h("div", { class: "cols" }, br, world),
-    lojas.length ? h("div", { class: "pbox" }, h("h3", { text: "Por loja" }), ...lojas.map(([k, st]) => srow(k, st))) : null,
-    h("p", { class: "hint", text: (rate ? `Dólar: ${brl(rate)}${c.fonte ? " (" + c.fonte + ")" : ""}. ` : "Cotação do dólar não encontrada. ") + `Consulta em ${new Date(p.consulta || Date.now()).toLocaleDateString("pt-BR")}. Mediana só de anúncios de jogos originais; ${s.descartados} anúncio(s) ficaram de fora (repro, outros itens ou fora da curva).` }),
+  const again = h("button", { class: "ghost", type: "button", text: "Atualizar" }); again.addEventListener("click", () => lookupPrice(r, target, key, p.metodo === "ia" ? "ia" : "auto"));
+  priceShell(target, priceLinks(r), h("div", { class: "cols" }, br, world),
+    h("p", { class: "hint", text: (rate ? `Dólar: ${brl(rate)}. ` : "") + `Consulta em ${new Date(p.consulta || Date.now()).toLocaleDateString("pt-BR")}${p.metodo === "ia" ? " (análise com IA)" : ""}. Mediana só de anúncios de jogos originais; ${s.descartados} anúncio(s) ficaram de fora.` }),
     ads.length ? h("details", {}, h("summary", { text: `Anúncios usados no cálculo (${s.usados.length})` }), h("ul", { class: "sources" }, ads)) : null,
     links.length ? h("details", {}, h("summary", { text: "Fontes" }), h("ul", { class: "sources" }, links)) : null,
-    p.observacao ? h("p", { class: "hint", text: p.observacao }) : null, h("div", { class: "actions" }, again));
+    p.observacao ? h("p", { class: "hint", text: p.observacao }) : null,
+    h("div", { class: "actions" }, again, p.metodo === "ia" ? null : aiButton(r, target, key)));
 }
 function showSavedPrice(g, target) {
   const r = { titulo: g.nome, plataforma: platformOf(g.console) ? PLAT_LABEL(platformOf(g.console)) : g.console, regiao: g.regiao };
   const saved = data.precos[gkey(g)];
   if (saved) { try { renderPrice(JSON.parse(saved.json), target, r, gkey(g)); return; } catch {} }
-  const btn = h("button", { class: "ghost", type: "button", text: "Buscar preço" }); btn.addEventListener("click", () => lookupPrice(r, target, gkey(g)));
-  priceShell(target, h("p", { class: "hint", text: "Mercado Livre, Shopee, OLX, Enjoei, Amazon, Magalu, Americanas, KaBuM!, Casas Bahia, lojas de games, PriceCharting e eBay." }), h("div", { class: "actions" }, btn));
+  lookupPrice(r, target, gkey(g), "auto");
 }
 
 /* ---------- Configuração inicial (assistente) ---------- */
@@ -1207,7 +1286,8 @@ function renderCfg() {
       field("k-t", "Chave do Tavily", tk),
       h("label", { class: "row hint" }, th, "Economizar dados: miniaturas das capas via images.weserv.nl"),
       h("div", { class: "actions" }, saveK, test, list), st,
-      h("p", { class: "hint", text: "As chaves ficam só neste aparelho (não vão para a planilha nem para o GitHub)." })),
+      h("p", { class: "hint", text: "As chaves ficam só neste aparelho (não vão para a planilha nem para o GitHub)." }),
+      h("p", { class: "hint", text: (() => { const u = usage(), ex = exhausted(); return `Consultas ao Gemini hoje: ${u.n}` + (Object.keys(u.por || {}).length ? ` (${Object.entries(u.por).map(([m, n]) => m + ": " + n).join(", ")})` : "") + "." + (ex.length ? ` Cota esgotada hoje em: ${ex.join(", ")}.` : "") + " A cota gratuita renova todo dia por volta das 4h–5h (Brasília). Cada foto usa 1 consulta; o preço só usa o Gemini se você tocar em “Analisar preços com IA”."; })() })),
     h("div", { class: "panel" }, h("h2", { text: "Plataformas das capas automáticas" }), h("p", { class: "hint", text: "Para cada console da sua planilha, o acervo do libretro-thumbnails usado nas capas." }), plats),
     h("div", { class: "panel" }, h("h2", { text: "Planilha e conta" }), h("p", { class: "hint" }, "Planilha: ", h("a", { href: `https://docs.google.com/spreadsheets/d/${sid()}/edit`, target: "_blank", rel: "noopener", text: data.title || "abrir" })),
       h("div", { class: "actions" }, remap, other, out)),
