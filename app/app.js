@@ -5,7 +5,10 @@
    Busca de preços: Tavily (opcional, chave gratuita) ou a busca do Google embutida no Gemini.
    Chaves de API ficam só no localStorage deste aparelho. Nada passa por servidor próprio. */
 
-const SCOPES = "https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file";
+// Modo pessoal (cada um com o próprio Google Cloud, em teste): acesso às planilhas + arquivos do app.
+// Modo central (um app só, verificado, para qualquer pessoa): só os arquivos que a pessoa escolhe ou que o app cria.
+const SCOPES_PESSOAL = "https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file";
+const SCOPES_CENTRAL = "https://www.googleapis.com/auth/drive.file";
 const DEFAULT_MODEL = "gemini-flash-latest";
 const CFG_TAB = "APP_CONFIG", CAPAS_TAB = "CAPAS", PRECOS_TAB = "PRECOS";
 const BUY_HEAD = ["DATA", "CONSOLE", "NOME", "REGIAO", "LISTA", "STATUS", "RECEBIDO_EM", "OBS"];
@@ -67,7 +70,7 @@ async function shrink(file, max = 1280, q = 0.85) {
 const blobB64 = (b) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(",")[1]); r.onerror = rej; r.readAsDataURL(b); });
 
 /* ---------- estado ---------- */
-const app = { clientId: "", version: "", token: null, tokenExp: 0, email: "" };
+const app = { clientId: "", apiKey: "", projectNumber: "", central: false, version: "", token: null, tokenExp: 0, email: "" };
 let cfg = null;                 // configuração guardada na aba APP_CONFIG da planilha
 const data = { loaded: false, head: [], games: [], wanted: [], buying: [], consoles: [], capas: {}, capasRows: {}, precos: {}, precosRows: {} };
 const sid = () => LS.get("sheetId", "");
@@ -83,7 +86,7 @@ function loadGis() {
 }
 function initAuth() {
   tokenClient = google.accounts.oauth2.initTokenClient({
-    client_id: app.clientId, scope: SCOPES,
+    client_id: app.clientId, scope: app.central ? SCOPES_CENTRAL : SCOPES_PESSOAL,
     callback: (r) => {
       const w = authWait; authWait = null;
       if (r && r.access_token) {
@@ -101,7 +104,7 @@ function signIn() {
 }
 function needAuth() { app.token = null; $("authbanner").hidden = false; }
 
-async function gapi(url, opt = {}) {
+async function gfetch(url, opt = {}) {
   if (!app.token || Date.now() > app.tokenExp - 30000) { needAuth(); throw { code: "auth", message: "Entre com o Google de novo." }; }
   const headers = { Authorization: "Bearer " + app.token, ...(opt.headers || {}) };
   if (typeof opt.body === "string") headers["Content-Type"] = "application/json";
@@ -117,18 +120,18 @@ const errMsg = (e) => e && e.code === "auth" ? "Sessão do Google expirou: toque
   e && e.message ? "Erro do Google: " + e.message : "Falha de conexão com o Google.";
 
 /* Sheets */
-const getValues = async (range) => ((await gapi(SHEETS + sid() + "/values/" + encodeURIComponent(range))).values) || [];
+const getValues = async (range) => ((await gfetch(SHEETS + sid() + "/values/" + encodeURIComponent(range))).values) || [];
 async function batchGet(ranges) {
   const q = ranges.map(r => "ranges=" + encodeURIComponent(r)).join("&");
-  return ((await gapi(SHEETS + sid() + "/values:batchGet?" + q)).valueRanges || []).map(v => v.values || []);
+  return ((await gfetch(SHEETS + sid() + "/values:batchGet?" + q)).valueRanges || []).map(v => v.values || []);
 }
-const putValues = (range, values) => gapi(SHEETS + sid() + "/values/" + encodeURIComponent(range) + "?valueInputOption=RAW", { method: "PUT", body: JSON.stringify({ values }) });
-const appendValues = (range, values) => gapi(SHEETS + sid() + "/values/" + encodeURIComponent(range) + ":append?valueInputOption=RAW&insertDataOption=INSERT_ROWS", { method: "POST", body: JSON.stringify({ values }) });
-const sheetMeta = (id = sid()) => gapi(SHEETS + id + "?fields=properties.title,sheets.properties(title,sheetId,hidden)");
+const putValues = (range, values) => gfetch(SHEETS + sid() + "/values/" + encodeURIComponent(range) + "?valueInputOption=RAW", { method: "PUT", body: JSON.stringify({ values }) });
+const appendValues = (range, values) => gfetch(SHEETS + sid() + "/values/" + encodeURIComponent(range) + ":append?valueInputOption=RAW&insertDataOption=INSERT_ROWS", { method: "POST", body: JSON.stringify({ values }) });
+const sheetMeta = (id = sid()) => gfetch(SHEETS + id + "?fields=properties.title,sheets.properties(title,sheetId,hidden)");
 async function ensureTab(title, header, hidden = false) {
   const meta = await sheetMeta();
   if (meta.sheets.some(s => s.properties.title === title)) return false;
-  await gapi(SHEETS + sid() + ":batchUpdate", { method: "POST", body: JSON.stringify({ requests: [{ addSheet: { properties: { title, hidden } } }] }) });
+  await gfetch(SHEETS + sid() + ":batchUpdate", { method: "POST", body: JSON.stringify({ requests: [{ addSheet: { properties: { title, hidden } } }] }) });
   if (header) await putValues(qt(title) + "!A1", [header]);
   return true;
 }
@@ -137,9 +140,9 @@ async function ensureTab(title, header, hidden = false) {
 async function photoFolder() {
   if (cfg.pastaFotos) return cfg.pastaFotos;
   const q = encodeURIComponent("name='Game Catalog - fotos' and mimeType='application/vnd.google-apps.folder' and trashed=false");
-  const found = await gapi(`${DRIVE}?q=${q}&fields=files(id)`);
+  const found = await gfetch(`${DRIVE}?q=${q}&fields=files(id)`);
   let id = found.files && found.files[0] && found.files[0].id;
-  if (!id) id = (await gapi(`${DRIVE}?fields=id`, { method: "POST", body: JSON.stringify({ name: "Game Catalog - fotos", mimeType: "application/vnd.google-apps.folder" }) })).id;
+  if (!id) id = (await gfetch(`${DRIVE}?fields=id`, { method: "POST", body: JSON.stringify({ name: "Game Catalog - fotos", mimeType: "application/vnd.google-apps.folder" }) })).id;
   cfg.pastaFotos = id; await saveCfg();
   return id;
 }
@@ -148,11 +151,11 @@ async function driveUpload(blob, name) {
   const form = new FormData();
   form.append("metadata", new Blob([JSON.stringify({ name, parents: [folder] })], { type: "application/json" }));
   form.append("file", blob);
-  return (await gapi("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id", { method: "POST", body: form })).id;
+  return (await gfetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id", { method: "POST", body: form })).id;
 }
 const driveCache = {};
 function driveImg(id) {
-  return driveCache[id] ||= gapi(`${DRIVE}/${encodeURIComponent(id)}?alt=media`, { raw: true }).then(r => r.blob()).then(b => URL.createObjectURL(b)).catch(() => { delete driveCache[id]; return ""; });
+  return driveCache[id] ||= gfetch(`${DRIVE}/${encodeURIComponent(id)}?alt=media`, { raw: true }).then(r => r.blob()).then(b => URL.createObjectURL(b)).catch(() => { delete driveCache[id]; return ""; });
 }
 
 /* ---------- configuração da planilha ---------- */
@@ -993,9 +996,13 @@ function screenLogin(err) {
   const btn = h("button", { class: "primary", type: "button", text: "Entrar com Google" });
   const st = h("p", { class: "status" + (err ? " err" : ""), role: "status", text: err || "" });
   btn.addEventListener("click", async () => { btn.disabled = true; st.textContent = "Abrindo o login do Google…";
-    try { await signIn(); afterLogin(); } catch (e) { btn.disabled = false; st.classList.add("err"); st.textContent = "Não foi possível entrar: " + (e.message || "tente de novo") + ". Se aparecer “acesso bloqueado”, confira se o seu e-mail está em Público-alvo → Usuários de teste no Google Cloud."; } });
-  setupPanel(h("h2", { text: "Entrar" }), h("p", { text: "O app usa a sua conta Google para ler e gravar a sua planilha da coleção e guardar fotos numa pasta do seu Google Drive." }),
-    h("p", { class: "hint", text: "Como você mesmo criou este app no seu Google Cloud, o Google pode avisar que ele “não foi verificado”. É esperado: toque em Avançado → Acessar." }), h("div", { class: "actions" }, btn), st);
+    try { await signIn(); afterLogin(); } catch (e) { btn.disabled = false; st.classList.add("err"); st.textContent = "Não foi possível entrar: " + (e.message || "tente de novo") + "." + (app.central ? " Se a janela do Google não abriu, permita janelas (pop-ups) para este site e tente de novo." : " Se aparecer “acesso bloqueado”, confira se o seu e-mail está em Público-alvo → Usuários de teste no Google Cloud."); } });
+  setupPanel(h("h2", { text: app.central ? "Bem-vindo!" : "Entrar" }),
+    h("p", { text: "O Game Catalog organiza a sua coleção de videogames numa planilha do Google: identifica jogos pela foto, mostra capas, preços e o que falta comprar." }),
+    h("p", { text: app.central ? "Entre com a sua conta Google. O app só consegue abrir a planilha que você escolher (ou criar) e uma pasta de fotos que ele mesmo cria no seu Google Drive. Nada é enviado para outra pessoa." : "O app usa a sua conta Google para ler e gravar a sua planilha da coleção e guardar fotos numa pasta do seu Google Drive." }),
+    app.central ? null : h("p", { class: "hint", text: "Como você mesmo criou este app no seu Google Cloud, o Google pode avisar que ele “não foi verificado”. É esperado: toque em Avançado → Acessar." }),
+    h("div", { class: "actions" }, btn), st,
+    h("p", { class: "hint" }, h("a", { href: "privacidade.html", text: "Política de privacidade" }), " · ", h("a", { href: "termos.html", text: "Termos de uso" })));
 }
 async function afterLogin() {
   if (!sid()) return screenSheet();
@@ -1003,7 +1010,68 @@ async function afterLogin() {
   if (!cfg) return screenMapping();
   startMain();
 }
+/* Seletor de arquivos do Google Drive (Google Picker): no modo central é assim que a pessoa dá acesso à planilha */
+function loadPicker() {
+  return new Promise((res, rej) => {
+    const go = () => window.gapi.load("picker", { callback: res, onerror: rej });
+    if (window.gapi && window.gapi.load) return go();
+    const s = document.createElement("script"); s.src = "https://apis.google.com/js/api.js"; s.async = true;
+    s.onload = go; s.onerror = () => rej(new Error("picker")); document.head.append(s);
+  });
+}
+async function pickSheet() {
+  await loadPicker();
+  return new Promise((res) => {
+    const view = new google.picker.DocsView(google.picker.ViewId.SPREADSHEETS).setMode(google.picker.DocsViewMode.LIST).setIncludeFolders(false);
+    const picker = new google.picker.PickerBuilder().addView(view).setOAuthToken(app.token).setDeveloperKey(app.apiKey).setAppId(app.projectNumber)
+      .setLocale("pt-BR").setTitle("Escolha a planilha da sua coleção")
+      .setCallback((d) => { if (d.action === google.picker.Action.PICKED) res(d.docs[0].id); else if (d.action === google.picker.Action.CANCEL) res(null); })
+      .build();
+    picker.setVisible(true);
+  });
+}
+async function knownSheets() {
+  const q = encodeURIComponent("mimeType='application/vnd.google-apps.spreadsheet' and trashed=false");
+  return ((await gfetch(`${DRIVE}?q=${q}&orderBy=modifiedTime desc&pageSize=20&fields=files(id,name,modifiedTime)`)).files) || [];
+}
+async function createSheet(st) {
+  st.classList.remove("err"); st.textContent = "Criando a planilha no seu Google Drive…";
+  try {
+    const d = await gfetch(SHEETS, { method: "POST", body: JSON.stringify({ properties: { title: "Coleção de games" }, sheets: [{ properties: { title: "COLECAO" } }, { properties: { title: "PROCURADOS" } }, { properties: { title: "COMPRAS" } }] }) });
+    LS.set("sheetId", d.spreadsheetId);
+    await putValues("COLECAO!A1:H1", [["CONSOLE", "NOME", "REGIAO", "CIB", "CAIXA", "MANUAL", "CONDICAO", "OBS"]]);
+    await putValues("PROCURADOS!A1:D1", [["CONSOLE", "NOME", "STATUS", "OBS"]]);
+    await putValues("COMPRAS!A1:H1", [BUY_HEAD]);
+    cfg = { v: 1, colecao: { aba: "COLECAO", console: 0, nome: 1, regiao: 2, ultima: 7 }, procurados: [{ aba: "PROCURADOS", nome: 1, status: 2, consoleCol: 0, console: "", info: 3 }], compras: { aba: "COMPRAS" }, plataformas: {} };
+    await saveCfg(); startMain();
+  } catch (e) { st.classList.add("err"); st.textContent = errMsg(e); }
+}
+async function screenSheetCentral(err) {
+  const pick = h("button", { class: "primary", type: "button", text: "Escolher a minha planilha" });
+  const create = h("button", { class: "ghost", type: "button", text: "Começar uma planilha nova" });
+  const st = h("p", { class: "status" + (err ? " err" : ""), role: "status", text: err || "" });
+  const known = h("div", { class: "rows" });
+  pick.addEventListener("click", async () => {
+    st.classList.remove("err"); st.textContent = "Abrindo o seu Google Drive…";
+    try { const id = await pickSheet(); if (!id) { st.textContent = ""; return; } st.textContent = "Abrindo a planilha…"; await sheetMeta(id); LS.set("sheetId", id); afterLogin(); }
+    catch (e) { st.classList.add("err"); st.textContent = e && e.message === "picker" ? "Não consegui abrir o seletor do Google Drive. Confira a internet e tente de novo." : errMsg(e); }
+  });
+  create.addEventListener("click", () => createSheet(st));
+  setupPanel(h("h2", { text: "Sua planilha da coleção" }),
+    h("p", { text: "Já controla a coleção numa planilha do Google? Toque em “Escolher a minha planilha” e selecione-a. Ainda não tem? Comece uma nova: o app cria tudo para você." }),
+    known, h("div", { class: "actions" }, pick, create), st,
+    h("p", { class: "hint", text: "A planilha continua sua, no seu Google Drive. O app só abre a planilha que você escolher." }));
+  try {
+    const files = await knownSheets();
+    if (files.length) known.append(h("p", { class: "eyebrow", text: "Planilhas que você já usou com o app" }), ...files.slice(0, 5).map(f => {
+      const b = h("button", { class: "fixpick", type: "button" }, h("b", { text: f.name }), h("small", { text: "alterada em " + new Date(f.modifiedTime).toLocaleDateString("pt-BR") }));
+      b.addEventListener("click", () => { LS.set("sheetId", f.id); afterLogin(); });
+      return b;
+    }));
+  } catch {}
+}
 function screenSheet(err) {
+  if (app.central) return screenSheetCentral(err);
   const url = h("input", { id: "su", placeholder: "https://docs.google.com/spreadsheets/d/…", autocomplete: "off" });
   const use = h("button", { class: "primary", type: "button", text: "Usar esta planilha" });
   const create = h("button", { class: "ghost", type: "button", text: "Criar uma planilha nova" });
@@ -1014,18 +1082,7 @@ function screenSheet(err) {
     st.classList.remove("err"); st.textContent = "Abrindo a planilha…";
     try { await sheetMeta(m[1]); LS.set("sheetId", m[1]); afterLogin(); } catch (e) { st.classList.add("err"); st.textContent = errMsg(e); }
   });
-  create.addEventListener("click", async () => {
-    st.textContent = "Criando a planilha no seu Google Drive…";
-    try {
-      const d = await gapi(SHEETS, { method: "POST", body: JSON.stringify({ properties: { title: "Coleção de games" }, sheets: [{ properties: { title: "COLECAO" } }, { properties: { title: "PROCURADOS" } }, { properties: { title: "COMPRAS" } }] }) });
-      LS.set("sheetId", d.spreadsheetId);
-      await putValues("COLECAO!A1:H1", [["CONSOLE", "NOME", "REGIAO", "CIB", "CAIXA", "MANUAL", "CONDICAO", "OBS"]]);
-      await putValues("PROCURADOS!A1:D1", [["CONSOLE", "NOME", "STATUS", "OBS"]]);
-      await putValues("COMPRAS!A1:H1", [BUY_HEAD]);
-      cfg = { v: 1, colecao: { aba: "COLECAO", console: 0, nome: 1, regiao: 2, ultima: 7 }, procurados: [{ aba: "PROCURADOS", nome: 1, status: 2, consoleCol: 0, console: "", info: 3 }], compras: { aba: "COMPRAS" }, plataformas: {} };
-      await saveCfg(); startMain();
-    } catch (e) { st.classList.add("err"); st.textContent = errMsg(e); }
-  });
+  create.addEventListener("click", () => createSheet(st));
   setupPanel(h("h2", { text: "Sua planilha" }), h("p", { text: "Cole o link da planilha da sua coleção (Google Sheets) ou crie uma planilha nova já no formato do app." }),
     field("su", "Link da planilha", url), h("div", { class: "actions" }, use, create), st,
     h("p", { class: "hint", text: "A planilha continua sua e no seu Drive. O app só lê e grava nela quando você usa as funções." }));
@@ -1096,7 +1153,7 @@ function renderCfg() {
   const saveK = h("button", { class: "primary", type: "button", text: "Salvar chaves" });
   const test = h("button", { class: "ghost", type: "button", text: "Testar Gemini" });
   const list = h("button", { class: "ghost", type: "button", text: "Listar modelos" });
-  saveK.addEventListener("click", () => { LS.set("geminiKey", gk.value.trim()); LS.set("geminiModel", gm.value.trim() || DEFAULT_MODEL); LS.set("tavilyKey", tk.value.trim()); LS.set("thumbs", th.checked); st.classList.remove("err"); st.textContent = "Salvo neste aparelho."; });
+  saveK.addEventListener("click", () => { LS.set("geminiKey", gk.value.trim()); LS.set("geminiModel", gm.value.trim() || DEFAULT_MODEL); LS.set("tavilyKey", tk.value.trim()); LS.set("thumbs", th.checked); st.classList.remove("err"); st.textContent = "Salvo neste aparelho."; keyCard(); });
   test.addEventListener("click", async () => { saveK.click(); st.textContent = "Testando…"; try { const r = await gemini([{ text: "Responda só com JSON {\"ok\": true}" }]); st.textContent = "Gemini funcionando (" + LS.get("geminiModel", DEFAULT_MODEL) + "): " + r.text.slice(0, 40); } catch (e) { st.classList.add("err"); st.textContent = gemMsg(e); } });
   list.addEventListener("click", async () => { saveK.click(); st.textContent = "Buscando modelos…";
     try { const r = await fetch("https://generativelanguage.googleapis.com/v1beta/models?pageSize=200", { headers: { "x-goog-api-key": gk.value.trim() } }); const d = await r.json();
@@ -1130,11 +1187,33 @@ function renderCfg() {
 function showTab(t) { showOnly(t); if (t === "cfg") renderCfg(); }
 for (const t of ["id", "col", "buy", "cfg"]) $("tab-" + t).addEventListener("click", () => showTab(t));
 $("relogin").addEventListener("click", async () => { try { await signIn(); loadData(); } catch {} });
-function startMain() { showTab("id"); setStatus(LS.get("geminiKey", "") ? "Tire ou escolha uma foto para começar." : "Para identificar por foto, cadastre a chave gratuita do Gemini em Ajustes.", !LS.get("geminiKey", "")); loadData(); }
+function keyCard() {
+  const box = $("keycard"); box.textContent = "";
+  if (LS.get("geminiKey", "")) { box.hidden = true; return; }
+  const inp = h("input", { id: "kc-g", type: "password", autocomplete: "off", placeholder: "Cole aqui a chave (começa com AIza)" });
+  const save = h("button", { class: "primary", type: "button", text: "Salvar e ativar" });
+  const st = h("p", { class: "status", role: "status" });
+  save.addEventListener("click", async () => {
+    const k = inp.value.trim(); if (!/^AIza[0-9A-Za-z_-]{20,}$/.test(k)) { st.classList.add("err"); st.textContent = "Essa não parece uma chave do Gemini. Ela começa com AIza."; return; }
+    LS.set("geminiKey", k); st.classList.remove("err"); st.textContent = "Testando…";
+    try { await gemini([{ text: "Responda só com JSON {\"ok\": true}" }]); box.hidden = true; setStatus("Pronto! Tire ou escolha uma foto para começar."); }
+    catch (e) { LS.set("geminiKey", ""); st.classList.add("err"); st.textContent = gemMsg(e); }
+  });
+  box.append(h("h2", { text: "Ative a identificação por foto (grátis)" }),
+    h("ol", { class: "steps" },
+      h("li", {}, "Toque em ", h("a", { href: "https://aistudio.google.com/apikey", target: "_blank", rel: "noopener", text: "abrir a página da chave" }), " e entre com a mesma conta Google."),
+      h("li", { text: "Aceite os termos, se pedir, e toque em “Criar chave de API” (Create API key)." }),
+      h("li", { text: "Toque no botão de copiar ao lado da chave, volte aqui e cole abaixo." })),
+    field("kc-g", "Chave do Gemini", inp), h("div", { class: "actions" }, save), st,
+    h("p", { class: "hint", text: "A chave fica guardada só neste aparelho. No plano grátis, o Google pode usar as fotos enviadas para melhorar os produtos dele: não fotografe documentos." }));
+  box.hidden = false;
+}
+function startMain() { showTab("id"); keyCard(); setStatus(LS.get("geminiKey", "") ? "Tire ou escolha uma foto para começar." : "Sem a chave do Gemini você ainda pode usar a Coleção e as Compras.", false); loadData(); }
 
 (async function boot() {
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
-  try { const c = await (await fetch("config.json", { cache: "no-store" })).json(); app.clientId = c.google_client_id || ""; } catch {}
+  try { const c = await (await fetch("config.json", { cache: "no-store" })).json(); app.clientId = c.google_client_id || ""; app.apiKey = c.google_api_key || ""; app.projectNumber = String(c.google_project_number || ""); } catch {}
+  app.central = !!(app.apiKey && /^\d+$/.test(app.projectNumber));
   try { const v = await (await fetch("version.json", { cache: "no-store" })).json(); app.version = v.versao || ""; } catch {}
   try { LIBRETRO = await (await fetch("data/libretro/index.json")).json(); } catch { LIBRETRO = []; }
   if (!app.clientId || /^COLE_/.test(app.clientId)) return screenNoClient();

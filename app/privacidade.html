@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Política de privacidade · Game Catalog</title>
+<link rel="icon" href="icons/icon-192.png">
+<style>
+:root { --bg: #e6e8ec; --panel: #f6f7f9; --ink: #1d2027; --muted: #5d6472; --line: #c9cdd5; --accent: #4a3fb0; }
+@media (prefers-color-scheme: dark) { :root { --bg: #14161b; --panel: #1d2028; --ink: #e8eaf0; --muted: #9aa1b0; --line: #2f3440; --accent: #8f84ff; } }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.6 system-ui, sans-serif; }
+main { max-width: 720px; margin: 0 auto; padding: 24px 16px 48px; }
+h1 { font-size: 1.6rem; line-height: 1.2; } h2 { font-size: 1.15rem; margin-top: 2em; }
+a { color: var(--accent); } table { border-collapse: collapse; width: 100%; font-size: .92rem; }
+th, td { border: 1px solid var(--line); padding: 8px; text-align: left; vertical-align: top; } th { background: var(--panel); }
+.muted { color: var(--muted); font-size: .9rem; }
+</style>
+</head>
+<body>
+<main>
+<p><a href="./">← Voltar ao Game Catalog</a></p>
+<h1>Política de privacidade do Game Catalog</h1>
+<p class="muted">Última atualização: 1º de novembro de 2026.</p>
+
+<p>O <strong>Game Catalog</strong> é um aplicativo gratuito para organizar uma coleção de videogames numa planilha do Google. Ele é mantido por VPRODC83 (“nós”). O código é aberto e pode ser conferido em <a href="https://github.com/VPRODC83/gamecatalog-app">github.com/VPRODC83/gamecatalog-app</a>.</p>
+
+<p><strong>Resumo:</strong> o app não tem servidor próprio e nós não recebemos, guardamos nem vemos nenhum dado seu. Tudo o que o app guarda fica na <em>sua</em> conta Google ou no <em>seu</em> aparelho.</p>
+
+<h2>1. Dados do Google que o app acessa</h2>
+<p>Ao entrar com a conta Google, você autoriza só o acesso <strong>aos arquivos que você escolher ou que o próprio app criar</strong> no seu Google Drive (permissão <code>drive.file</code>). Na prática:</p>
+<ul>
+  <li><strong>A planilha da sua coleção</strong>, que você escolhe no seletor do Google Drive ou cria pelo app. O app lê e grava nela a coleção, os procurados, a lista de compras, as capas escolhidas, os últimos preços consultados e a configuração do app (aba APP_CONFIG).</li>
+  <li><strong>A pasta “Game Catalog - fotos”</strong>, que o app cria no seu Drive para guardar as fotos que você tirar das caixas e cartuchos.</li>
+</ul>
+<p>O app <strong>não</strong> consegue ver os seus outros arquivos do Drive, os seus e-mails, contatos nem qualquer outro dado da sua conta.</p>
+
+<h2>2. Como esses dados são usados</h2>
+<ul>
+  <li>Somente para mostrar e atualizar a sua coleção no próprio app, a seu pedido.</li>
+  <li>Os dados vão direto do seu aparelho para o Google. Não passam por servidores nossos, não são vendidos, não são compartilhados com ninguém e não são usados para publicidade.</li>
+  <li>Alterações em linhas que já existem na planilha só acontecem depois que você revisa o “antes e depois” e confirma.</li>
+</ul>
+<p>O uso e a transferência, para qualquer outro aplicativo, de informações recebidas das APIs do Google obedecem à <a href="https://developers.google.com/terms/api-services-user-data-policy">Política de dados do usuário dos serviços de API do Google</a>, incluindo os requisitos de uso limitado.</p>
+
+<h2>3. Serviços de terceiros que você pode ativar</h2>
+<table>
+  <tr><th>Serviço</th><th>Para quê</th><th>O que é enviado</th></tr>
+  <tr><td><strong>Google Gemini</strong> (com a <em>sua</em> chave gratuita)</td><td>Identificar jogos pela foto e ler anúncios de preço</td><td>As fotos que você manda identificar e a lista de nomes da sua coleção (para conferir se você já tem o jogo). No plano gratuito, o Google pode usar esse conteúdo para melhorar os produtos dele: veja os <a href="https://ai.google.dev/gemini-api/terms">termos da API do Gemini</a>.</td></tr>
+  <tr><td><strong>Tavily</strong> (opcional, com a <em>sua</em> chave)</td><td>Buscar preços em lojas</td><td>O nome e a plataforma do jogo pesquisado.</td></tr>
+  <tr><td><strong>libretro-thumbnails</strong> (GitHub) e <strong>Wikipédia</strong></td><td>Mostrar capas</td><td>O pedido da imagem da capa (endereço da imagem).</td></tr>
+  <tr><td><strong>images.weserv.nl</strong> (pode ser desligado em Ajustes)</td><td>Reduzir o tamanho das capas para economizar dados</td><td>O endereço público da imagem da capa.</td></tr>
+</table>
+
+<h2>4. O que fica no seu aparelho</h2>
+<p>As chaves do Gemini e do Tavily, a planilha escolhida e algumas preferências ficam guardadas apenas no navegador do seu aparelho (armazenamento local). Elas não vão para a planilha, para o GitHub nem para nós. Para apagá-las, limpe os dados do site no navegador ou desinstale o app.</p>
+
+<h2>5. Por quanto tempo</h2>
+<p>Os dados ficam na sua conta Google enquanto você quiser. Você pode apagar a planilha e a pasta de fotos a qualquer momento pelo Google Drive. Nós não mantemos cópias.</p>
+
+<h2>6. Como remover o acesso do app</h2>
+<p>Abra <a href="https://myaccount.google.com/connections">myaccount.google.com/connections</a>, escolha <strong>Game Catalog</strong> e remova o acesso. Isso não apaga a sua planilha nem as suas fotos.</p>
+
+<h2>7. Crianças</h2>
+<p>O app não é direcionado a menores de 13 anos e não coleta dados de ninguém. Quem usa o app é responsável pela própria conta Google.</p>
+
+<h2>8. Contato</h2>
+<p>Dúvidas ou pedidos sobre privacidade: abra uma conversa em <a href="https://github.com/VPRODC83/gamecatalog-app/issues">github.com/VPRODC83/gamecatalog-app/issues</a>.</p>
+
+<h2>9. Mudanças nesta política</h2>
+<p>Se esta política mudar, a nova versão será publicada nesta mesma página, com a data de atualização no topo.</p>
+</main>
+</body>
+</html>

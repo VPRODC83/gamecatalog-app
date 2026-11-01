@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#4a3fb0">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://accounts.google.com/gsi/client; frame-src https://accounts.google.com/gsi/; connect-src 'self' https://accounts.google.com/gsi/ https://sheets.googleapis.com https://www.googleapis.com https://oauth2.googleapis.com https://generativelanguage.googleapis.com https://api.tavily.com https://en.wikipedia.org https://pt.wikipedia.org; img-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style https://fonts.googleapis.com; font-src https://fonts.gstatic.com; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://accounts.google.com/gsi/client https://apis.google.com https://www.gstatic.com; frame-src https://accounts.google.com/gsi/ https://docs.google.com https://drive.google.com https://content.googleapis.com; connect-src 'self' https://accounts.google.com/gsi/ https://sheets.googleapis.com https://www.googleapis.com https://content.googleapis.com https://apis.google.com https://oauth2.googleapis.com https://generativelanguage.googleapis.com https://api.tavily.com https://en.wikipedia.org https://pt.wikipedia.org; img-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style https://fonts.googleapis.com https://www.gstatic.com; font-src https://fonts.gstatic.com; base-uri 'none'; form-action 'none'">
 <title>Game Catalog</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon-192.png">
@@ -206,6 +206,7 @@ footer { color: var(--muted); font-size: .8rem; }
 
   <main id="view-id" hidden>
     <div style="display:flex;flex-direction:column;gap:18px">
+      <section class="panel" id="keycard" hidden></section>
       <section class="slot" aria-labelledby="fotos-tit">
         <p class="eyebrow" id="fotos-tit">Fotos</p>
         <div class="shots">
@@ -248,7 +249,7 @@ footer { color: var(--muted); font-size: .8rem; }
   <main id="view-cfg" hidden></main>
 
   <div class="sheet" id="sheet" hidden></div>
-  <footer id="footer">Game Catalog. Seus dados ficam na sua conta Google; as chaves de API ficam só neste aparelho.</footer>
+  <footer id="footer">Game Catalog. Seus dados ficam na sua conta Google; as chaves de API ficam só neste aparelho. <a href="privacidade.html">Privacidade</a> · <a href="termos.html">Termos</a></footer>
 </div>
 <script src="app.js"></script>
 </body>
