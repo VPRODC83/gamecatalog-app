@@ -24,6 +24,7 @@ class AppModel(val ctx: Context, val auth: GoogleAuth) {
     val sheets = Sheets { token() }
     val repo = Repo(ctx.filesDir, sheets)
     var catalog: Catalog? by mutableStateOf(null)
+    var catalogError: String? by mutableStateOf(null)
     var loggedIn by mutableStateOf(false)
     var busy by mutableStateOf(false)
     var message by mutableStateOf<String?>(null)
@@ -34,7 +35,11 @@ class AppModel(val ctx: Context, val auth: GoogleAuth) {
 
     init {
         scope.launch {
-            catalog = withContext(Dispatchers.IO) { runCatching { ctx.assets.open("catalog.json.gz").use { Catalog.load(it) } }.getOrNull() }
+            val r = withContext(Dispatchers.IO) {
+                runCatching { (runCatching { ctx.assets.open("catalog.json") }.getOrNull() ?: ctx.assets.open("catalog.json.gz")).use { Catalog.load(it) } }
+            }
+            catalog = r.getOrNull()
+            catalogError = r.exceptionOrNull()?.let { "Não consegui abrir o catálogo de jogos (${it.message}). A busca pela planilha continua funcionando." }
         }
     }
 

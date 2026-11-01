@@ -32,6 +32,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
@@ -73,6 +74,20 @@ suspend fun readText(ctx: Context, uri: Uri): Pair<List<Identify.Block>, String>
     return blocks to res.text
 }
 
+/** Texto e momento da cópia atuais da área de transferência (null se vazia ou sem permissão). */
+fun readClip(ctx: Context): Pair<String, Long>? = runCatching {
+    val cm = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+    val c = cm.primaryClip ?: return null
+    val t = c.getItemAt(0)?.coerceToText(ctx)?.toString()?.trim().orEmpty()
+    val stamp = if (android.os.Build.VERSION.SDK_INT >= 26) c.description.timestamp else t.hashCode().toLong()
+    if (t.isEmpty()) null else t to stamp
+}.getOrNull()
+
+/** Nome copiado do Lens, sem sobras de sites ("- Wikipedia", "| eBay", várias linhas…). */
+fun cleanClip(t: String): String = t.lineSequence().map { it.trim() }.firstOrNull { it.length >= 2 }.orEmpty()
+    .replace("\\s+[-|–—:]\\s+(Wikip[eé]dia|eBay|Mercado Livre|Amazon|OLX|Shopee|PriceCharting|YouTube|IGN|GameFAQs|MobyGames).*$".toRegex(RegexOption.IGNORE_CASE), "")
+    .take(120).trim()
+
 /** Código de console da planilha que corresponde a um acervo do catálogo (ex.: acervo do SNES → "SNES"). */
 fun consoleFor(m: AppModel, repoId: String): String = m.repo.state.value.consoles.firstOrNull { m.repo.platformOf(it) == repoId } ?: ""
 
@@ -86,7 +101,7 @@ fun IdentifyScreen(m: AppModel, onOpen: (Item) -> Unit) {
     var reading by remember { mutableStateOf(false) }
     var lensPending by remember { mutableStateOf(false) }
     var clip by remember { mutableStateOf<String?>(null) }
-    var lastClip by remember { mutableStateOf<String?>(null) }
+    var clipStamp by remember { mutableStateOf(-1L) }
     var search by remember { mutableStateOf("") }
 
     fun analyze(f: File) {
@@ -94,7 +109,10 @@ fun IdentifyScreen(m: AppModel, onOpen: (Item) -> Unit) {
         scope.launch {
             try {
                 val (blocks, text) = readText(ctx, fileUri(ctx, f))
-                val cat = m.catalog ?: run { status = "O catálogo de jogos ainda está carregando. Tente de novo em instantes."; return@launch }
+                var cat = m.catalog
+                var waited = 0
+                while (cat == null && m.catalogError == null && waited < 100) { kotlinx.coroutines.delay(100); waited++; cat = m.catalog }
+                if (cat == null) { status = m.catalogError ?: "O catálogo de jogos ainda está carregando. Tente de novo em instantes."; return@launch }
                 val repos = m.repo.state.value.consoles.map { m.repo.platformOf(it) }.filter { it.isNotEmpty() }.distinct()
                 val found = withContext(Dispatchers.Default) { Identify.find(cat, blocks, text, repos) }
                 found.forEach { cands.add(Cand(it.match.tituloLimpo, consoleFor(m, it.match.repo), it.match.plataforma, it.match.repo, it.alternativas, "etiqueta")) }
@@ -119,13 +137,17 @@ fun IdentifyScreen(m: AppModel, onOpen: (Item) -> Unit) {
 
     // ao voltar do Google Lens, oferece o nome que você copiou lá
     val owner = LocalLifecycleOwner.current
+    // O Android só deixa ler a área de transferência com o app em primeiro plano e com foco,
+    // então confere quando a janela recebe o foco e mais algumas vezes logo depois de voltar.
+    fun checkClip() {
+        if (!lensPending) return
+        val (t, stamp) = readClip(ctx) ?: return
+        if (stamp != clipStamp && t.isNotBlank()) { clip = t; clipStamp = stamp }
+    }
+    val focused = androidx.compose.ui.platform.LocalWindowInfo.current.isWindowFocused
+    LaunchedEffect(focused, lensPending) { if (focused && lensPending) for (d in listOf(150L, 500L, 1200L, 2500L)) { kotlinx.coroutines.delay(d); checkClip(); if (clip != null) break } }
     DisposableEffect(owner, lensPending) {
-        val obs = LifecycleEventObserver { _, e ->
-            if (e == Lifecycle.Event.ON_RESUME && lensPending) {
-                val t = runCatching { (ctx.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager).primaryClip?.getItemAt(0)?.coerceToText(ctx)?.toString()?.trim() }.getOrNull()
-                if (!t.isNullOrBlank() && t != lastClip && t.length <= 120) clip = t
-            }
-        }
+        val obs = LifecycleEventObserver { _, e -> if (e == Lifecycle.Event.ON_RESUME && lensPending) scope.launch { kotlinx.coroutines.delay(300); checkClip() } }
         owner.lifecycle.addObserver(obs); onDispose { owner.lifecycle.removeObserver(obs) }
     }
 
@@ -143,10 +165,10 @@ fun IdentifyScreen(m: AppModel, onOpen: (Item) -> Unit) {
                     photo?.let { AsyncImage(model = it, contentDescription = "Foto", modifier = Modifier.fillMaxWidth().heightIn(max = 260.dp)) }
                     Row { if (reading) CircularProgressIndicator(Modifier.width(20.dp).padding(end = 8.dp)); Hint(status) }
                     photo?.let { f ->
-                        OutlinedButton(onClick = { lastClip = runCatching { (ctx.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager).primaryClip?.getItemAt(0)?.coerceToText(ctx)?.toString()?.trim() }.getOrNull(); lensPending = openLens(ctx, fileUri(ctx, f)) }, modifier = Modifier.fillMaxWidth()) {
+                        OutlinedButton(onClick = { clipStamp = readClip(ctx)?.second ?: -1L; clip = null; lensPending = openLens(ctx, fileUri(ctx, f)) }, modifier = Modifier.fillMaxWidth()) {
                             Text("Perguntar ao Google Lens")
                         }
-                        Hint("No Lens, toque no nome do jogo, escolha Copiar e volte para cá: o app oferece o nome copiado.")
+                        Hint("No Lens, segure o dedo no nome do jogo (no texto da foto ou num resultado), toque em Copiar e volte para cá: o app oferece o nome copiado. Se não oferecer, use o botão Colar em Buscar pelo nome.")
                     }
                 }
             }
@@ -155,10 +177,10 @@ fun IdentifyScreen(m: AppModel, onOpen: (Item) -> Unit) {
             item {
                 Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
                     Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Você copiou “$t”. Procurar este jogo?", fontWeight = FontWeight.SemiBold)
+                        Text("Você copiou “${cleanClip(t)}”. Procurar este jogo?", fontWeight = FontWeight.SemiBold)
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Button(onClick = { search = t; lastClip = t; clip = null; lensPending = false }) { Text("Procurar") }
-                            TextButton(onClick = { lastClip = t; clip = null }) { Text("Agora não") }
+                            Button(onClick = { search = cleanClip(t); clip = null; lensPending = false }) { Text("Procurar") }
+                            TextButton(onClick = { clip = null; lensPending = false }) { Text("Agora não") }
                         }
                     }
                 }
@@ -182,7 +204,10 @@ fun IdentifyScreen(m: AppModel, onOpen: (Item) -> Unit) {
 fun NameSearch(m: AppModel, query: String, onQuery: (String) -> Unit, onPick: (Cand) -> Unit) {
     val consoles = m.repo.state.value.consoles
     var console by remember { mutableStateOf("") }
-    OutlinedTextField(value = query, onValueChange = onQuery, label = { Text("Nome do jogo ou parte dele") }, singleLine = true, leadingIcon = { Icon(Icons.Default.Search, null) }, modifier = Modifier.fillMaxWidth())
+    val ctx = LocalContext.current
+    OutlinedTextField(value = query, onValueChange = onQuery, label = { Text("Nome do jogo ou parte dele") }, singleLine = true, leadingIcon = { Icon(Icons.Default.Search, null) }, modifier = Modifier.fillMaxWidth(),
+        trailingIcon = { TextButton(onClick = { readClip(ctx)?.first?.let { onQuery(cleanClip(it)) } }) { Text("Colar") } })
+    if (m.catalog == null) Hint(m.catalogError ?: "Carregando o catálogo de jogos…")
     Picker("Console", console, listOf("" to "Todos os consoles") + consoles.map { it to it }) { console = it }
     val q = query.trim()
     if (q.length >= 2) {

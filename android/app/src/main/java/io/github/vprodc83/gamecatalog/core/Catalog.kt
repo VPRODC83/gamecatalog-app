@@ -100,7 +100,10 @@ class Catalog(val repos: List<Repo>) {
 
         /** Lê o catálogo gerado por tools/build_catalog.py (JSON compactado com gzip). */
         fun load(input: InputStream): Catalog {
-            val txt = GZIPInputStream(input).bufferedReader(Charsets.UTF_8).readText()
+            // o Android tira o .gz dos assets ao montar o APK; aceita o arquivo compactado ou não
+            val b = java.io.BufferedInputStream(input); b.mark(2)
+            val gz = b.read() == 0x1f && b.read() == 0x8b; b.reset()
+            val txt = (if (gz) GZIPInputStream(b) else b).bufferedReader(Charsets.UTF_8).readText()
             val o = JSONObject(txt); val arr = o.getJSONArray("repos")
             val list = (0 until arr.length()).map { i ->
                 val r = arr.getJSONObject(i); val ns = r.getJSONArray("names")

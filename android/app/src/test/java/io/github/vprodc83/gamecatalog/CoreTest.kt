@@ -72,6 +72,18 @@ class CoreTest {
         assertEquals("Ação & <Aventura> \"1\"", back[0].rows[1][1])
     }
 
+    @Test fun catalogUncompressed() {
+        // o APK guarda o asset sem o .gz: o carregamento precisa aceitar os dois formatos
+        val raw = java.util.zip.GZIPInputStream(File("src/main/assets/catalog.json.gz").inputStream()).readBytes()
+        val c = Catalog.load(ByteArrayInputStream(raw))
+        assertEquals(cat.repos.size, c.repos.size)
+    }
+
+    @Test fun clip() {
+        assertEquals("Super Mario World", io.github.vprodc83.gamecatalog.ui.cleanClip("Super Mario World - Wikipédia\nmais texto"))
+        assertEquals("Donkey Kong Country", io.github.vprodc83.gamecatalog.ui.cleanClip("  \nDonkey Kong Country | eBay"))
+    }
+
     @Test fun misc() {
         assertEquals("1AbCdEfGhIjKlMnOpQrStUvWxYz0123", Sheets.idFromLink("https://docs.google.com/spreadsheets/d/1AbCdEfGhIjKlMnOpQrStUvWxYz0123/edit?usp=sharing"))
         assertEquals("AA", Sheets.col(26))
