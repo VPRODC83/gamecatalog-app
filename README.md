@@ -2,6 +2,8 @@
 
 App gratuito para controlar uma coleção de videogames numa planilha do Google: identificar jogos pela foto, ver capas, controlar a lista de compras e consultar preços no Brasil e no mundo.
 
+> **Aplicativo Android (sem IA, identificação no próprio celular):** [docs/android.md](docs/android.md) — o APK sai em cada [release](https://github.com/VPRODC83/gamecatalog-app/releases/latest).
+>
 > **App central (para qualquer pessoa):** [docs/app-central.md](docs/app-central.md) explica como colocar o app em `https://vprodc83.github.io/`, com login Google verificado.
 >
 > **Quer usar o app?** Não use este repositório. Siga o guia de instalação em

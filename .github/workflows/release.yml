@@ -1,6 +1,7 @@
 # Publica uma versão do app: monta o site, gera o atestado de proveniência e cria a release.
 #
-# Automático: todo push do dono no main que mude app/ ou tools/ vira uma versão nova.
+# Automático: todo push do dono no main que mude app/, android/ ou tools/ vira uma versão nova.
+# Cada versão traz o site (app.zip) e o aplicativo Android (gamecatalog.apk), com o mesmo número.
 # As marcas abaixo valem no TÍTULO do commit (primeira linha da mensagem).
 #   - número: a última versão + 1 no último dígito (v0.2.0 → v0.2.1);
 #   - "[minor]" na mensagem do commit sobe o do meio (v0.2.1 → v0.3.0);
@@ -15,7 +16,7 @@ name: Publicar versão
 on:
   push:
     branches: [main]
-    paths: ["app/**", "tools/**", ".github/workflows/release.yml"]
+    paths: ["app/**", "android/**", "tools/**", ".github/workflows/release.yml"]
     tags: ["v*"]
   workflow_dispatch:
     inputs:
@@ -96,11 +97,42 @@ jobs:
           sha256sum app.zip > SHA256SUMS
           cat SHA256SUMS
 
-      - name: Atestado de proveniência (prova que o app.zip saiu deste workflow)
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        if: steps.v.outputs.pular != 'sim'
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Montar o aplicativo Android (APK assinado)
+        id: apk
+        if: steps.v.outputs.pular != 'sim'
+        env:
+          TAG: ${{ steps.v.outputs.tag }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -z "${ANDROID_KEY_PASSWORD:-}" ]; then
+            echo "⚠️ Segredo ANDROID_KEY_PASSWORD não cadastrado: esta versão sai sem o APK." >> "$GITHUB_STEP_SUMMARY"; exit 0
+          fi
+          python tools/build_catalog.py dist/data/libretro android/app/src/main/assets/catalog.json.gz
+          ks="$RUNNER_TEMP/release.keystore"
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in android/app/release.keystore.enc -out "$ks" -pass env:ANDROID_KEY_PASSWORD
+          cd android
+          printf 'sdk.dir=%s\n' "$ANDROID_HOME" > local.properties
+          ANDROID_KEYSTORE_FILE="$ks" APP_VERSION="${TAG#v}" ./gradlew --no-daemon testDebugUnitTest assembleRelease
+          rm -f "$ks"
+          cp app/build/outputs/apk/release/app-release.apk ../gamecatalog.apk
+          cd ..
+          sha256sum gamecatalog.apk >> SHA256SUMS
+          echo "ok=sim" >> "$GITHUB_OUTPUT"
+
+      - name: Atestado de proveniência (prova que o app.zip e o APK saíram deste workflow)
         if: steps.v.outputs.pular != 'sim'
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
-          subject-path: app.zip
+          subject-path: |
+            app.zip
+            ${{ steps.apk.outputs.ok == 'sim' && 'gamecatalog.apk' || '' }}
 
       - name: Criar ou atualizar a release
         if: steps.v.outputs.pular != 'sim'
@@ -110,16 +142,17 @@ jobs:
           ANTERIOR: ${{ steps.v.outputs.anterior }}
         run: |
           set -euo pipefail
+          files="app.zip SHA256SUMS"; [ -f gamecatalog.apk ] && files="$files gamecatalog.apk"
           if [ -n "${ANTERIOR:-}" ] && git rev-parse -q --verify "refs/tags/$ANTERIOR" >/dev/null; then range="$ANTERIOR..$GITHUB_SHA"; else range="$GITHUB_SHA"; fi
           mudancas="$(git log --no-merges --pretty='- %s' "$range" | head -40)"
-          notes="$(printf 'Versão %s do Game Catalog.\n\nMudanças:\n%s\n\nOs instaladores conferem o atestado de proveniência antes de publicar.' "$TAG" "$mudancas")"
+          notes="$(printf 'Versão %s do Game Catalog.\n\nMudanças:\n%s\n\nCelular Android: baixe o gamecatalog.apk abaixo e abra para instalar.\n\nOs instaladores conferem o atestado de proveniência antes de publicar.' "$TAG" "$mudancas")"
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" app.zip SHA256SUMS --clobber
+            gh release upload "$TAG" $files --clobber
           elif [ "$GITHUB_REF_TYPE" = "tag" ]; then
-            gh release create "$TAG" app.zip SHA256SUMS --title "$TAG" --notes "$notes" --verify-tag
+            gh release create "$TAG" $files --title "$TAG" --notes "$notes" --verify-tag
           else
             # cria a tag no commit atual junto com a release
-            gh release create "$TAG" app.zip SHA256SUMS --title "$TAG" --notes "$notes" --target "$GITHUB_SHA"
+            gh release create "$TAG" $files --title "$TAG" --notes "$notes" --target "$GITHUB_SHA"
           fi
           echo "## ✅ Versão $TAG publicada" >> "$GITHUB_STEP_SUMMARY"
           echo "Os instaladores dos usuários pegam esta versão na próxima verificação (a cada 3 horas)." >> "$GITHUB_STEP_SUMMARY"
