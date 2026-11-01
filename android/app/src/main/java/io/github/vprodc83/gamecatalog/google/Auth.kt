@@ -24,11 +24,12 @@ class GoogleAuth(private val activity: Activity) {
     private var expires = 0L
     var email: String? = null; private set
     var launcher: ActivityResultLauncher<IntentSenderRequest>? = null
-    private var pending: CompletableDeferred<AuthorizationResult?>? = null
+    private var pending: CompletableDeferred<Result<AuthorizationResult>>? = null
 
     /** Resultado da tela do Google (chamado pela Activity). */
-    fun onResult(data: Intent?) {
-        val r = runCatching { client.getAuthorizationResultFromIntent(data) }.getOrNull()
+    fun onResult(resultCode: Int, data: Intent?) {
+        val r = runCatching { client.getAuthorizationResultFromIntent(data) }
+            .recoverCatching { e -> throw LoginError.from(e, resultCode) }
         pending?.complete(r); pending = null
     }
 
@@ -38,15 +39,15 @@ class GoogleAuth(private val activity: Activity) {
      */
     suspend fun token(interactive: Boolean): String {
         token?.let { if (System.currentTimeMillis() < expires) return it }
-        var r = client.authorize(request).await()
+        var r = try { client.authorize(request).await() } catch (e: Exception) { if (interactive) throw LoginError.from(e, null) else throw NeedsLogin() }
         if (r.hasResolution()) {
             if (!interactive) throw NeedsLogin()
             val l = launcher ?: throw NeedsLogin()
-            val d = CompletableDeferred<AuthorizationResult?>(); pending = d
+            val d = CompletableDeferred<Result<AuthorizationResult>>(); pending = d
             l.launch(IntentSenderRequest.Builder(r.pendingIntent!!.intentSender).build())
-            r = d.await() ?: throw NeedsLogin()
+            r = d.await().getOrThrow()
         }
-        val t = r.accessToken ?: throw NeedsLogin()
+        val t = r.accessToken ?: throw LoginError("O Google não devolveu a permissão de acesso às planilhas. Toque em Entrar de novo e, na tela de permissões, marque a caixa das planilhas.")
         token = t; expires = System.currentTimeMillis() + 45 * 60_000
         email = runCatching { r.toGoogleSignInAccount()?.email }.getOrNull() ?: email
         return t
@@ -61,4 +62,24 @@ class GoogleAuth(private val activity: Activity) {
     }
 
     class NeedsLogin : Exception("É preciso entrar com a conta Google.")
+
+    /** Erro do login explicado, com o código do Google para diagnóstico. */
+    class LoginError(msg: String) : Exception(msg) {
+        companion object {
+            fun from(e: Throwable, resultCode: Int?): LoginError {
+                val code = (e as? com.google.android.gms.common.api.ApiException)?.statusCode
+                val tag = buildString { append("código "); append(code ?: "?"); if (resultCode != null) append(", resultado $resultCode") }
+                val txt = when (code) {
+                    10 -> "O Google recusou a configuração do app (cliente Android no Google Cloud: nome do pacote ou SHA-1 diferente, ou criado em outro projeto). Alterações no Google Cloud podem levar alguns minutos para valer."
+                    16, 12501 -> "O login foi cancelado ou bloqueado pelo Google. Se a sua conta não está nos Usuários de teste do Google Cloud, o Google bloqueia a entrada."
+                    7 -> "Sem conexão com o Google. Confira a internet."
+                    8 -> "Erro interno do Google Play Services. Tente de novo em instantes."
+                    17 -> "O Google Play Services do celular não oferece este login. Atualize o Google Play Services."
+                    null -> if (resultCode == 0) "A tela do Google foi fechada antes de terminar (ou o Google bloqueou a conta: confira os Usuários de teste)." else "Falha no login do Google: ${e.message}"
+                    else -> "Falha no login do Google: ${e.message}"
+                }
+                return LoginError("$txt ($tag)")
+            }
+        }
+    }
 }

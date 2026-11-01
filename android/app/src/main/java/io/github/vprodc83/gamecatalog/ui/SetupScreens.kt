@@ -53,8 +53,9 @@ fun LoginScreen(m: AppModel, onDone: () -> Unit) {
     SetupFrame("Bem-vindo!") {
         Text("O Game Catalog organiza a sua coleção de videogames numa planilha do Google Sheets, que pode ser compartilhada com quem ajuda você a procurar jogos.")
         Text("Entre com a conta Google do celular. O app lê e grava a planilha da coleção que você escolher; nada é enviado para outra pessoa.")
-        Button(onClick = { m.login(onDone) }, modifier = Modifier.fillMaxWidth()) { Text("Entrar com Google") }
-        m.message?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+        Button(onClick = { m.login(onDone) }, enabled = !m.busy, modifier = Modifier.fillMaxWidth()) { Text("Entrar com Google") }
+        if (m.busy) CircularProgressIndicator()
+        m.loginError?.let { androidx.compose.foundation.text.selection.SelectionContainer { Text(it, color = MaterialTheme.colorScheme.error) } }
         TextButton(onClick = { openUrl(m.ctx, "https://vprodc83.github.io/privacidade.html") }) { Text("Política de privacidade") }
     }
 }

@@ -65,7 +65,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         val auth = GoogleAuth(this)
-        auth.launcher = registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { auth.onResult(it.data) }
+        auth.launcher = registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { auth.onResult(it.resultCode, it.data) }
         model = AppModel(applicationContext, auth)
         handleShare(intent)
         setContent { MaterialTheme(colorScheme = if (isSystemInDarkTheme()) DarkColors else LightColors) { Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) { App(model) } } }

@@ -28,6 +28,7 @@ class AppModel(val ctx: Context, val auth: GoogleAuth) {
     var busy by mutableStateOf(false)
     var message by mutableStateOf<String?>(null)
     var sharedLink by mutableStateOf<String?>(null)
+    var loginError by mutableStateOf<String?>(null)
 
     private suspend fun token(): String = try { auth.token(interactive = false) } catch (e: GoogleAuth.NeedsLogin) { loggedIn = false; throw e }
 
@@ -44,8 +45,10 @@ class AppModel(val ctx: Context, val auth: GoogleAuth) {
     }
 
     fun login(after: () -> Unit) = scope.launch {
+        loginError = null; busy = true
         try { auth.token(interactive = true); loggedIn = true; after() }
-        catch (e: Exception) { message = "Não foi possível entrar: " + (e.message ?: "tente de novo") }
+        catch (e: Exception) { loginError = "Não foi possível entrar. " + (e.message ?: "Tente de novo.") }
+        finally { busy = false }
     }
 
     /** Executa uma operação na planilha com aviso de erro; repete uma vez se o token venceu. */
