@@ -596,8 +596,21 @@ function receiveForm(b) {
 /* ---------- Gemini ---------- */
 const GEM_MSG = { nokey: "Cadastre a sua chave gratuita do Gemini em Ajustes.", badkey: "A chave do Gemini foi recusada. Confira em Ajustes.", model: "O modelo escolhido não existe mais. Escolha outro em Ajustes → Listar modelos.",
   rate: "Limite gratuito do Gemini atingido por agora. Tente mais tarde.", json: "A resposta veio num formato inesperado. Tente de novo.", empty: "O Gemini não respondeu. Tente outra foto." };
-const gemMsg = (e) => (e && GEM_MSG[e.code]) || ("Falha no Gemini" + (e && e.message ? ": " + e.message : "."));
-async function gemini(parts, { json = true, search = false, signal } = {}) {
+const gemMsg = (e) => ((e && GEM_MSG[e.code]) || "Falha no Gemini.") + (e && e.message && e.code !== "nokey" ? " (Google: " + e.message + ")" : "");
+// Chaves do Gemini: formato antigo "AIza…" ou novo "AQ.…" (desde 2026). Aceita os dois; quem decide é o Google.
+const looksLikeKey = (k) => /^(AIza[0-9A-Za-z_-]{20,}|AQ\.[0-9A-Za-z._-]{20,})$/.test(k) || (k.length >= 30 && !/\s/.test(k));
+// Escolhe um modelo "flash" disponível para esta chave quando o configurado não existe mais
+async function autoModel(key) {
+  const r = await fetch("https://generativelanguage.googleapis.com/v1beta/models?pageSize=200", { headers: { "x-goog-api-key": key } });
+  if (!r.ok) return null;
+  const names = ((await r.json()).models || []).filter(m => (m.supportedGenerationMethods || []).includes("generateContent")).map(m => m.name.replace(/^models\//, ""));
+  const ok = names.filter(n => /flash/i.test(n) && !/image|tts|audio|live|embed|thinking|exp/i.test(n));
+  const pick = ok.find(n => /latest/.test(n) && !/lite/.test(n)) || ok.find(n => !/lite|preview/.test(n)) || ok.find(n => !/lite/.test(n)) || ok[0] || names[0];
+  if (pick) LS.set("geminiModel", pick);
+  return pick || null;
+}
+async function gemini(parts, opts = {}, retried = false) {
+  const { json = true, search = false, signal } = opts;
   const key = LS.get("geminiKey", ""); if (!key) throw { code: "nokey" };
   const model = LS.get("geminiModel", DEFAULT_MODEL);
   const body = { contents: [{ role: "user", parts }], generationConfig: { temperature: 0.2 } };
@@ -605,7 +618,8 @@ async function gemini(parts, { json = true, search = false, signal } = {}) {
   if (search) body.tools = [{ google_search: {} }];
   const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, { method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": key }, body: JSON.stringify(body), signal });
   if (!r.ok) { let m = ""; try { m = (await r.json()).error.message; } catch {}
-    throw { code: r.status === 429 ? "rate" : (r.status === 400 || r.status === 403) && /key/i.test(m) ? "badkey" : r.status === 404 ? "model" : "gemini", status: r.status, message: m }; }
+    if (r.status === 404 && !retried && await autoModel(key).catch(() => null)) return gemini(parts, opts, true);
+    throw { code: r.status === 429 ? "rate" : (r.status === 400 || r.status === 401 || r.status === 403) && /key|credential|auth|permission/i.test(m) ? "badkey" : r.status === 404 ? "model" : "gemini", status: r.status, message: m }; }
   const d = await r.json(), cand = d.candidates && d.candidates[0];
   const text = ((cand && cand.content && cand.content.parts) || []).map(p => p.text || "").join("");
   if (!text) throw { code: "empty", message: (cand && cand.finishReason) || (d.promptFeedback && d.promptFeedback.blockReason) };
@@ -1144,7 +1158,7 @@ async function screenMapping() {
 /* ---------- Ajustes ---------- */
 function renderCfg() {
   const v = $("view-cfg"); v.textContent = "";
-  const gk = h("input", { id: "k-g", type: "password", value: LS.get("geminiKey", ""), autocomplete: "off", placeholder: "AIza…" });
+  const gk = h("input", { id: "k-g", type: "password", value: LS.get("geminiKey", ""), autocomplete: "off", placeholder: "AQ.… ou AIza…" });
   const gm = h("input", { id: "k-m", value: LS.get("geminiModel", DEFAULT_MODEL), list: "k-ml", autocomplete: "off" });
   const gml = h("datalist", { id: "k-ml" });
   const tk = h("input", { id: "k-t", type: "password", value: LS.get("tavilyKey", ""), autocomplete: "off", placeholder: "tvly-…" });
@@ -1153,7 +1167,7 @@ function renderCfg() {
   const saveK = h("button", { class: "primary", type: "button", text: "Salvar chaves" });
   const test = h("button", { class: "ghost", type: "button", text: "Testar Gemini" });
   const list = h("button", { class: "ghost", type: "button", text: "Listar modelos" });
-  saveK.addEventListener("click", () => { LS.set("geminiKey", gk.value.trim()); LS.set("geminiModel", gm.value.trim() || DEFAULT_MODEL); LS.set("tavilyKey", tk.value.trim()); LS.set("thumbs", th.checked); st.classList.remove("err"); st.textContent = "Salvo neste aparelho."; keyCard(); });
+  saveK.addEventListener("click", () => { LS.set("geminiKey", gk.value.trim().replace(/^["']|["']$/g, "")); LS.set("geminiModel", gm.value.trim() || DEFAULT_MODEL); LS.set("tavilyKey", tk.value.trim()); LS.set("thumbs", th.checked); st.classList.remove("err"); st.textContent = "Salvo neste aparelho."; keyCard(); });
   test.addEventListener("click", async () => { saveK.click(); st.textContent = "Testando…"; try { const r = await gemini([{ text: "Responda só com JSON {\"ok\": true}" }]); st.textContent = "Gemini funcionando (" + LS.get("geminiModel", DEFAULT_MODEL) + "): " + r.text.slice(0, 40); } catch (e) { st.classList.add("err"); st.textContent = gemMsg(e); } });
   list.addEventListener("click", async () => { saveK.click(); st.textContent = "Buscando modelos…";
     try { const r = await fetch("https://generativelanguage.googleapis.com/v1beta/models?pageSize=200", { headers: { "x-goog-api-key": gk.value.trim() } }); const d = await r.json();
@@ -1190,11 +1204,11 @@ $("relogin").addEventListener("click", async () => { try { await signIn(); loadD
 function keyCard() {
   const box = $("keycard"); box.textContent = "";
   if (LS.get("geminiKey", "")) { box.hidden = true; return; }
-  const inp = h("input", { id: "kc-g", type: "password", autocomplete: "off", placeholder: "Cole aqui a chave (começa com AIza)" });
+  const inp = h("input", { id: "kc-g", type: "password", autocomplete: "off", placeholder: "Cole aqui a chave (começa com AQ. ou AIza)" });
   const save = h("button", { class: "primary", type: "button", text: "Salvar e ativar" });
   const st = h("p", { class: "status", role: "status" });
   save.addEventListener("click", async () => {
-    const k = inp.value.trim(); if (!/^AIza[0-9A-Za-z_-]{20,}$/.test(k)) { st.classList.add("err"); st.textContent = "Essa não parece uma chave do Gemini. Ela começa com AIza."; return; }
+    const k = inp.value.trim().replace(/^["']|["']$/g, ""); if (!looksLikeKey(k)) { st.classList.add("err"); st.textContent = "Essa não parece uma chave do Gemini. Ela começa com AQ. (ou AIza, nas chaves antigas) e não tem espaços. Use o botão de copiar da página da chave."; return; }
     LS.set("geminiKey", k); st.classList.remove("err"); st.textContent = "Testando…";
     try { await gemini([{ text: "Responda só com JSON {\"ok\": true}" }]); box.hidden = true; setStatus("Pronto! Tire ou escolha uma foto para começar."); }
     catch (e) { LS.set("geminiKey", ""); st.classList.add("err"); st.textContent = gemMsg(e); }
