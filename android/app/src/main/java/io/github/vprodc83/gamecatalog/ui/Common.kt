@@ -85,7 +85,11 @@ fun <T> Picker(label: String, value: T, options: List<Pair<T, String>>, modifier
 fun Cover(model: Any?, fallback: String, modifier: Modifier = Modifier) {
     Box(modifier.aspectRatio(3f / 4f).clip(RoundedCornerShape(6.dp)).background(MaterialTheme.colorScheme.surface)
         .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(6.dp)), contentAlignment = Alignment.Center) {
-        Text(fallback, textAlign = TextAlign.Center, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(6.dp))
+        // o nome do console diminui até caber inteiro (ex.: SUPER FAMICOM numa miniatura)
+        androidx.compose.foundation.text.BasicText(fallback, modifier = Modifier.padding(6.dp),
+            style = MaterialTheme.typography.labelSmall.copy(textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant),
+            softWrap = true, maxLines = fallback.split(" ").size.coerceIn(1, 3),
+            autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 6.sp, maxFontSize = 11.sp, stepSize = 0.5.sp))
         if (model != null && model != "") AsyncImage(model = model, contentDescription = null, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize())
     }
 }

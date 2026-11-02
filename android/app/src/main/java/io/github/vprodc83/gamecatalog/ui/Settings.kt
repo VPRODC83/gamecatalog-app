@@ -80,7 +80,7 @@ object Storage {
         val known = size(fotos) + size(capas) + temp.sumOf { size(it) } + planilha.sumOf { size(it) }
         val other = size(ctx.filesDir) + size(ctx.cacheDir) + size(ctx.codeCacheDir) - known
         return listOf(
-            Part(tr("Suas fotos (capas e mídias)"), size(fotos), "${count(fotos)} foto(s)"),
+            Part(tr("Suas fotos (capas e mídias)"), size(fotos), tr("{0} foto(s)", count(fotos))),
             Part(tr("Capas baixadas da internet"), size(capas), tr("podem ser baixadas de novo")),
             Part(tr("Fotos temporárias da identificação"), temp.sumOf { size(it) }, tr("podem ser apagadas")),
             Part(tr("Cópia da planilha no celular"), planilha.sumOf { size(it) }),

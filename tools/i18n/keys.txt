@@ -250,3 +250,8 @@ versão {0}
 © 2026 VPRODC83. Todos os direitos reservados.
 É preciso entrar com a conta Google.
 ‹ Voltar
+{0} jogo(s)
+comprado {0}
+(nenhuma)
+(sem título)
+{0} foto(s)

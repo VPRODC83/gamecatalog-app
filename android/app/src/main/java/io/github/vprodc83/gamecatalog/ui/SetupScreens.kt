@@ -115,7 +115,7 @@ fun MappingScreen(m: AppModel, onSaved: () -> Unit) {
         })
     } }
     var buyTab by remember { mutableStateOf(prev?.compras ?: tabs.firstOrNull { T.norm(it).matches("^(BUYING|COMPRAS)$".toRegex()) } ?: "COMPRAS") }
-    fun cols(tab: String, none: Boolean) = (if (none) listOf(-1 to "(nenhuma)") else emptyList()) + (d.second[tab] ?: emptyList()).mapIndexed { i, h -> i to "${Sheets.col(i)} · ${h.ifBlank { "(sem título)" }}" }
+    fun cols(tab: String, none: Boolean) = (if (none) listOf(-1 to tr("(nenhuma)")) else emptyList()) + (d.second[tab] ?: emptyList()).mapIndexed { i, h -> i to "${Sheets.col(i)} · ${h.ifBlank { tr("(sem título)") }}" }
 
     SetupFrame(tr("Como é a sua planilha")) {
         Hint(tr("Isso fica salvo na própria planilha (aba APP_CONFIG) e vale para todas as pessoas e aparelhos que usam ela."))

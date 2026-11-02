@@ -74,7 +74,7 @@ fun ListScreen(m: AppModel, lista: Lista, onOpen: (Item) -> Unit) {
                 if (lista == Lista.COLECAO && all.isNotEmpty()) CoverUpdateCard(m)
                 Hint(when {
                     st.offline -> tr("Sem internet: mostrando a última cópia salva no aparelho. {0} jogo(s).", shown.size)
-                    else -> "${shown.size} jogo(s)"
+                    else -> tr("{0} jogo(s)", shown.size)
                 })
             }
         }
@@ -97,7 +97,7 @@ fun ItemRow(m: AppModel, i: Item, onClick: () -> Unit) {
             Cover(m.coverFor(i), cn(i.console), Modifier.width(52.dp))
             Column(Modifier.weight(1f)) {
                 Text(i.nome, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                Hint(listOf(cn(i.console), i.regiao, if (i.lista == Lista.PROCURADO) cn(i.aba) else "", if (i.lista == Lista.COMPRADO) "comprado ${i.data}" else "").filter { it.isNotBlank() }.joinToString(" · "))
+                Hint(listOf(cn(i.console), i.regiao, if (i.lista == Lista.PROCURADO) cn(i.aba) else "", if (i.lista == Lista.COMPRADO) tr("comprado {0}", i.data) else "").filter { it.isNotBlank() }.joinToString(" · "))
                 if (i.lista == Lista.PROCURADO && i.info.isNotBlank()) Hint(i.info)
             }
         }

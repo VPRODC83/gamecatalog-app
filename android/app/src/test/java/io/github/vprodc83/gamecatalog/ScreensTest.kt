@@ -67,7 +67,9 @@ class ScreensTest {
         }
         rule.mainClock.advanceTimeBy(7000)
         rule.waitForIdle()
-        val bmp = rule.onRoot().captureToImage().asAndroidBitmap()
+        val v = rule.activity.window.decorView
+        val bmp = Bitmap.createBitmap(v.width, v.height, Bitmap.Config.ARGB_8888)
+        rule.runOnUiThread { v.draw(android.graphics.Canvas(bmp)) }
         File(out, "$name.png").outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
     }
 

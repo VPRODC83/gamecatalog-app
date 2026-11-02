@@ -46,7 +46,11 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     buildFeatures { compose = true; buildConfig = true }
-    testOptions { unitTests.isIncludeAndroidResources = true }
+    testOptions {
+        unitTests.isIncludeAndroidResources = true
+        // espelho opcional para o Robolectric baixar o Android de teste (quando o Maven Central limita downloads)
+        unitTests.all { t -> System.getenv("ROBOLECTRIC_REPO")?.let { t.systemProperty("robolectric.dependency.repo.url", it) } }
+    }
     lint { abortOnError = false; checkReleaseBuilds = true }
     packaging { resources.excludes += "/META-INF/{AL2.0,LGPL2.1}" }
 }
