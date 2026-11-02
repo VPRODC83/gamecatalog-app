@@ -255,5 +255,12 @@
 "bought {0}",
 "(none)",
 "(untitled)",
-"{0} photo(s)"
+"{0} photo(s)",
+"Permission to view and edit spreadsheets was not granted. Tap Sign in with Google again and, on Google's permissions screen, check the spreadsheets (Google Sheets) box.",
+"Spreadsheet permission was not granted. In Settings, tap Sign out and sign in again, checking the spreadsheets box on Google's screen.",
+"The Google Sheets API is disabled in the app's Google Cloud project. Tell whoever published the app.",
+"Google denied access to this spreadsheet for the account {0}. It must be shared with exactly this email as Editor (in Google Sheets: Share). If the phone uses another Google account, sign in with the account that received the share.",
+"(unknown)",
+"Signed in as {0}. The spreadsheet must be shared with this email as Editor.",
+"Sign in with another Google account"
 ]

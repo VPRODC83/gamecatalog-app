@@ -255,5 +255,12 @@
 "comprado el {0}",
 "(ninguna)",
 "(sin título)",
-"{0} foto(s)"
+"{0} foto(s)",
+"No se concedió el permiso para ver y editar hojas de cálculo. Toca Iniciar sesión con Google de nuevo y, en la pantalla de permisos de Google, marca la casilla de las hojas (Google Sheets).",
+"No se concedió el permiso para las hojas. En Ajustes, toca Cerrar sesión y vuelve a entrar marcando la casilla de las hojas en la pantalla de Google.",
+"La API de Google Sheets está desactivada en el proyecto de la app en Google Cloud. Avisa a quien publicó la app.",
+"Google denegó el acceso a esta hoja para la cuenta {0}. Debe estar compartida con exactamente ese correo como Editor (en Google Sheets: Compartir). Si el móvil usa otra cuenta de Google, inicia sesión con la cuenta que recibió el acceso.",
+"(desconocida)",
+"Sesión iniciada como {0}. La hoja debe estar compartida con este correo como Editor.",
+"Iniciar sesión con otra cuenta de Google"
 ]

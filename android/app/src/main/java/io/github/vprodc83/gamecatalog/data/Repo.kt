@@ -283,7 +283,12 @@ class Repo(private val dir: File, val sheets: Sheets) {
         fun friendly(e: Throwable): String = when {
             e is io.github.vprodc83.gamecatalog.google.GoogleAuth.NeedsLogin -> tr("Entre com a sua conta Google.")
             e is GoogleError && e.status == 401 -> tr("A sessão do Google expirou. Toque em Atualizar.")
-            e is GoogleError && e.status == 403 -> tr("O Google negou o acesso a esta planilha. Confira se ela foi compartilhada com a sua conta como Editor.")
+            e is GoogleError && e.status == 403 && (e.message ?: "").contains("scope", true) ->
+                tr("A permissão para as planilhas não foi concedida. Em Ajustes, toque em Sair da conta e entre de novo, marcando a caixa das planilhas na tela do Google.")
+            e is GoogleError && e.status == 403 && (e.message ?: "").let { it.contains("has not been used", true) || it.contains("disabled", true) } ->
+                tr("A API do Google Sheets está desativada no projeto do app no Google Cloud. Avise quem publicou o app.")
+            e is GoogleError && e.status == 403 -> tr("O Google negou o acesso a esta planilha para a conta {0}. Ela precisa estar compartilhada com exatamente esse e-mail como Editor (no Google Sheets: Compartilhar). Se o celular usa outra conta Google, entre com a conta que recebeu o compartilhamento.",
+                io.github.vprodc83.gamecatalog.google.GoogleAuth.lastEmail ?: tr("(desconhecida)"))
             e is GoogleError && e.status == 404 -> tr("Planilha ou aba não encontrada.")
             e is GoogleError -> tr("Erro do Google: {0}", e.message)
             e is java.net.UnknownHostException || e is java.net.SocketTimeoutException || e is java.net.ConnectException -> tr("Sem internet no momento.")

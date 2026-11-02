@@ -255,3 +255,10 @@ comprado {0}
 (nenhuma)
 (sem título)
 {0} foto(s)
+A permissão para ver e editar as planilhas não foi concedida. Toque em Entrar com Google de novo e, na tela de permissões do Google, marque a caixa das planilhas (Google Sheets).
+A permissão para as planilhas não foi concedida. Em Ajustes, toque em Sair da conta e entre de novo, marcando a caixa das planilhas na tela do Google.
+A API do Google Sheets está desativada no projeto do app no Google Cloud. Avise quem publicou o app.
+O Google negou o acesso a esta planilha para a conta {0}. Ela precisa estar compartilhada com exatamente esse e-mail como Editor (no Google Sheets: Compartilhar). Se o celular usa outra conta Google, entre com a conta que recebeu o compartilhamento.
+(desconhecida)
+Conectado como {0}. A planilha precisa estar compartilhada com este e-mail como Editor.
+Entrar com outra conta Google

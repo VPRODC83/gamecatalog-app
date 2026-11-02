@@ -255,5 +255,12 @@
 "comprato il {0}",
 "(nessuna)",
 "(senza titolo)",
-"{0} foto"
+"{0} foto",
+"Il permesso di vedere e modificare i fogli non è stato concesso. Tocca di nuovo Accedi con Google e, nella schermata dei permessi di Google, seleziona la casella dei fogli (Google Sheets).",
+"Il permesso per i fogli non è stato concesso. In Impostazioni tocca Esci dall'account e accedi di nuovo, selezionando la casella dei fogli nella schermata di Google.",
+"L'API di Google Sheets è disattivata nel progetto Google Cloud dell'app. Avvisa chi ha pubblicato l'app.",
+"Google ha negato l'accesso a questo foglio per l'account {0}. Deve essere condiviso esattamente con questa e-mail come Editor (in Google Sheets: Condividi). Se il telefono usa un altro account Google, accedi con l'account che ha ricevuto la condivisione.",
+"(sconosciuto)",
+"Accesso effettuato come {0}. Il foglio deve essere condiviso con questa e-mail come Editor.",
+"Accedi con un altro account Google"
 ]

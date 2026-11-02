@@ -255,5 +255,12 @@
 "acheté le {0}",
 "(aucune)",
 "(sans titre)",
-"{0} photo(s)"
+"{0} photo(s)",
+"L'autorisation de voir et modifier les tableurs n'a pas été accordée. Touchez à nouveau Se connecter avec Google et, sur l'écran des autorisations Google, cochez la case des tableurs (Google Sheets).",
+"L'autorisation pour les tableurs n'a pas été accordée. Dans Réglages, touchez Se déconnecter puis reconnectez-vous en cochant la case des tableurs sur l'écran Google.",
+"L'API Google Sheets est désactivée dans le projet Google Cloud de l'app. Prévenez la personne qui a publié l'app.",
+"Google a refusé l'accès à ce tableur pour le compte {0}. Il doit être partagé avec exactement cet e-mail en tant qu'Éditeur (dans Google Sheets : Partager). Si le téléphone utilise un autre compte Google, connectez-vous avec le compte qui a reçu le partage.",
+"(inconnu)",
+"Connecté en tant que {0}. Le tableur doit être partagé avec cet e-mail en tant qu'Éditeur.",
+"Se connecter avec un autre compte Google"
 ]

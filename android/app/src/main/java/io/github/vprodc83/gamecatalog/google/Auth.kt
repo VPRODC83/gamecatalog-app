@@ -49,18 +49,43 @@ class GoogleAuth(private val activity: Activity) {
             r = d.await().getOrThrow()
         }
         val t = r.accessToken ?: throw LoginError(tr("O Google não devolveu a permissão de acesso às planilhas. Toque em Entrar de novo e, na tela de permissões, marque a caixa das planilhas."))
+        // na tela de permissões do Google a caixa das planilhas pode ficar desmarcada: sem ela, nada funciona
+        if (r.grantedScopes.none { it.contains("spreadsheets") }) {
+            invalidate()
+            throw LoginError(tr("A permissão para ver e editar as planilhas não foi concedida. Toque em Entrar com Google de novo e, na tela de permissões do Google, marque a caixa das planilhas (Google Sheets)."))
+        }
         token = t; expires = System.currentTimeMillis() + 45 * 60_000
-        email = runCatching { r.toGoogleSignInAccount()?.email }.getOrNull() ?: email
+        email = runCatching { r.toGoogleSignInAccount()?.email }.getOrNull() ?: email ?: fetchEmail(t)
+        lastEmail = email
         return t
     }
 
     /** Força um token novo na próxima chamada (ex.: depois de um 401). */
     fun invalidate() { token = null; expires = 0 }
 
+    /** Sai de verdade: retira a permissão dada ao app, para o Google voltar a perguntar a conta e as permissões. */
     suspend fun signOut() {
+        email?.let { e ->
+            runCatching {
+                client.revokeAccess(com.google.android.gms.auth.api.identity.RevokeAccessRequest.builder()
+                    .setAccount(android.accounts.Account(e, "com.google"))
+                    .setScopes(listOf(Scope("https://www.googleapis.com/auth/spreadsheets"), Scope("email"))).build()).await()
+            }
+        }
         token?.let { t -> kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { runCatching { com.google.android.gms.auth.GoogleAuthUtil.clearToken(activity, t) } } }
-        invalidate(); email = null
+        invalidate(); email = null; lastEmail = null
     }
+
+    /** E-mail da conta que entrou (para mostrar e para explicar erros de acesso). */
+    private suspend fun fetchEmail(t: String): String? = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        runCatching {
+            val c = java.net.URL("https://www.googleapis.com/oauth2/v3/userinfo").openConnection() as java.net.HttpURLConnection
+            c.setRequestProperty("Authorization", "Bearer $t"); c.connectTimeout = 10000; c.readTimeout = 10000
+            c.inputStream.use { org.json.JSONObject(it.bufferedReader().readText()).optString("email").ifBlank { null } }
+        }.getOrNull()
+    }
+
+    companion object { @Volatile var lastEmail: String? = null }
 
     class NeedsLogin : Exception(tr("É preciso entrar com a conta Google."))
 

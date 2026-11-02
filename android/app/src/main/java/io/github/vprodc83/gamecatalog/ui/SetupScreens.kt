@@ -67,6 +67,10 @@ fun SheetScreen(m: AppModel, onOpened: () -> Unit) {
     var err by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     SetupFrame(tr("Sua planilha da coleção")) {
+        m.auth.email?.let { e ->
+            Hint(tr("Conectado como {0}. A planilha precisa estar compartilhada com este e-mail como Editor.", e))
+            TextButton(onClick = { scope.launch { m.auth.signOut(); m.loggedIn = false; m.login {} } }) { Text(tr("Entrar com outra conta Google")) }
+        }
         Text(tr("Abra a sua planilha no app Google Sheets, toque em Compartilhar → Copiar link e cole aqui. Se outra pessoa da casa criou a planilha, peça para ela compartilhar com você como Editor."))
         OutlinedTextField(value = link, onValueChange = { link = it }, label = { Text(tr("Link da planilha")) }, singleLine = true, modifier = Modifier.fillMaxWidth())
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

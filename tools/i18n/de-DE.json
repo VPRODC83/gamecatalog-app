@@ -255,5 +255,12 @@
 "gekauft am {0}",
 "(keine)",
 "(ohne Titel)",
-"{0} Foto(s)"
+"{0} Foto(s)",
+"Die Berechtigung zum Ansehen und Bearbeiten von Tabellen wurde nicht erteilt. Tippe erneut auf Mit Google anmelden und setze im Berechtigungsbildschirm von Google das Häkchen bei Tabellen (Google Sheets).",
+"Die Berechtigung für Tabellen wurde nicht erteilt. Tippe in den Einstellungen auf Abmelden und melde dich erneut an; setze dabei das Häkchen bei Tabellen.",
+"Die Google Sheets API ist im Google-Cloud-Projekt der App deaktiviert. Gib der Person Bescheid, die die App veröffentlicht hat.",
+"Google hat den Zugriff auf diese Tabelle für das Konto {0} verweigert. Sie muss genau mit dieser E-Mail als Bearbeiter geteilt sein (in Google Sheets: Teilen). Wenn das Handy ein anderes Google-Konto nutzt, melde dich mit dem Konto an, mit dem geteilt wurde.",
+"(unbekannt)",
+"Angemeldet als {0}. Die Tabelle muss mit dieser E-Mail als Bearbeiter geteilt sein.",
+"Mit einem anderen Google-Konto anmelden"
 ]
