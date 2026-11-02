@@ -113,4 +113,8 @@ fun openLens(ctx: Context, uri: Uri): Boolean {
 fun brl(v: Double?): String = if (v == null) "—" else java.text.NumberFormat.getCurrencyInstance(java.util.Locale("pt", "BR")).format(v)
 fun usd(v: Double?): String = if (v == null) "—" else "US$ " + String.format(java.util.Locale("pt", "BR"), "%.2f", v)
 
+/** Nome por extenso dos códigos de console e abas, só para mostrar (a planilha continua com o código). */
+private val consoleNames = mapOf("SFC" to "SUPER FAMICOM", "FC" to "FAMICOM")
+fun cn(s: String?): String = s.orEmpty().let { consoleNames[it.trim().uppercase()] ?: it }
+
 @Composable fun Spacer8() = androidx.compose.foundation.layout.Spacer(Modifier.padding(4.dp))

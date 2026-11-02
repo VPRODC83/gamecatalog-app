@@ -3,7 +3,15 @@ package io.github.vprodc83.gamecatalog.ui
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -62,7 +70,8 @@ fun ListScreen(m: AppModel, lista: Lista, onOpen: (Item) -> Unit) {
         item {
             Column(Modifier.padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(value = q, onValueChange = { q = it }, label = { Text("Procurar em ${lista.titulo.lowercase()}") }, singleLine = true, leadingIcon = { Icon(Icons.Default.Search, null) }, modifier = Modifier.fillMaxWidth())
-                if (consoles.size > 1) Picker("Console", console, listOf("" to "Todos (${all.size})") + consoles.map { c -> c to "$c (${all.count { it.console.equals(c, true) }})" }) { console = it }
+                if (consoles.size > 1) Picker("Console", console, listOf("" to "Todos (${all.size})") + consoles.map { c -> c to "${cn(c)} (${all.count { it.console.equals(c, true) }})" }) { console = it }
+                if (lista == Lista.COLECAO && all.isNotEmpty()) CoverUpdateCard(m)
                 Hint(when {
                     st.offline -> "Sem internet: mostrando a última cópia salva no aparelho. ${shown.size} jogo(s)."
                     else -> "${shown.size} jogo(s)"
@@ -85,10 +94,10 @@ fun ListScreen(m: AppModel, lista: Lista, onOpen: (Item) -> Unit) {
 fun ItemRow(m: AppModel, i: Item, onClick: () -> Unit) {
     Card(Modifier.fillMaxWidth().clickable(onClick = onClick)) {
         Row(Modifier.padding(10.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Cover(m.coverFor(i), i.console, Modifier.width(52.dp))
+            Cover(m.coverFor(i), cn(i.console), Modifier.width(52.dp))
             Column(Modifier.weight(1f)) {
                 Text(i.nome, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                Hint(listOf(i.console, i.regiao, if (i.lista == Lista.PROCURADO) i.aba else "", if (i.lista == Lista.COMPRADO) "comprado ${i.data}" else "").filter { it.isNotBlank() }.joinToString(" · "))
+                Hint(listOf(cn(i.console), i.regiao, if (i.lista == Lista.PROCURADO) cn(i.aba) else "", if (i.lista == Lista.COMPRADO) "comprado ${i.data}" else "").filter { it.isNotBlank() }.joinToString(" · "))
                 if (i.lista == Lista.PROCURADO && i.info.isNotBlank()) Hint(i.info)
             }
         }
@@ -103,28 +112,29 @@ fun DetailScreen(m: AppModel, item0: Item, onBack: () -> Unit) {
     val item = remember(st) { st.items.firstOrNull { it.id == item0.id && it.chave == item0.chave } ?: st.items.firstOrNull { it.lista == item0.lista && it.chave == item0.chave } ?: item0 }
     @Suppress("UNUSED_VARIABLE") val pv = m.photosVersion
     var dialog by remember { mutableStateOf<String?>(null) }
+    var zoom by remember { mutableStateOf<Any?>(null) }
     val repoId = m.repo.platformOf(item.console)
     LazyColumn(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item { TextButton(onClick = onBack) { Text("‹ Voltar") } }
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) { Cover(m.coverFor(item, "capa"), item.console, Modifier.fillMaxWidth()); TextButton(onClick = { dialog = "capa" }) { Text("Trocar capa") } }
-                Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) { Cover(m.coverFor(item, "midia"), "Foto do cartucho/disco", Modifier.fillMaxWidth()); TextButton(onClick = { dialog = "midia" }) { Text("Foto da mídia") } }
+                Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) { val cv = m.coverFor(item, "capa"); Cover(cv, cn(item.console), Modifier.fillMaxWidth().clickable(enabled = cv != null) { zoom = cv }); TextButton(onClick = { dialog = "capa" }) { Text("Trocar capa") } }
+                Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) { val md = m.coverFor(item, "midia"); Cover(md, "Foto do cartucho/disco", Modifier.fillMaxWidth().clickable(enabled = md != null) { zoom = md }); TextButton(onClick = { dialog = "midia" }) { Text("Foto da mídia") } }
             }
         }
         item {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(item.nome, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                Hint("${item.lista.titulo} · aba ${item.aba} · linha ${item.linha}")
+                Hint("${item.lista.titulo} · aba ${cn(item.aba)} · linha ${item.linha}")
             }
         }
         item {
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    val labels = if (item.lista == Lista.COLECAO) st.head else emptyList()
-                    if (item.lista == Lista.COLECAO) item.raw.forEachIndexed { k, v -> if (v.isNotBlank()) Row { Text((labels.getOrNull(k)?.ifBlank { null } ?: "Coluna ${k + 1}") + ": ", fontWeight = FontWeight.SemiBold); Text(v) } }
+                    val consoleCol = st.config?.colecao?.console ?: -1
+                    if (item.lista == Lista.COLECAO) item.raw.forEachIndexed { k, v -> if (v.isNotBlank()) Row { Text(m.colName(k) + ": ", fontWeight = FontWeight.SemiBold); Text(if (k == consoleCol) cn(v) else v) } }
                     else {
-                        listOf("Console" to item.console, "Região" to item.regiao, "Status" to item.status, "Observação" to item.info.ifBlank { item.obs }, "Data da compra" to item.data)
+                        listOf("Console" to cn(item.console), "Região" to item.regiao, "Status" to item.status, "Observação" to item.info.ifBlank { item.obs }, "Data da compra" to item.data)
                             .filter { it.second.isNotBlank() }.forEach { (k, v) -> Row { Text("$k: ", fontWeight = FontWeight.SemiBold); Text(v) } }
                     }
                 }
@@ -133,7 +143,11 @@ fun DetailScreen(m: AppModel, item0: Item, onBack: () -> Unit) {
         item {
             Chips {
                 when (item.lista) {
-                    Lista.COLECAO -> { Button(onClick = { dialog = "editar" }) { Text("Editar dados") }; OutlinedButton(onClick = { dialog = "comprei" }) { Text("Comprei outra cópia") } }
+                    Lista.COLECAO -> {
+                        Button(onClick = { dialog = "editar" }) { Text("Editar dados") }
+                        OutlinedButton(onClick = { dialog = "comprei" }) { Text("Comprei outra cópia") }
+                        OutlinedButton(onClick = { dialog = "excluir" }, colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text("Excluir") }
+                    }
                     Lista.PROCURADO -> Button(onClick = { dialog = "comprei" }) { Text("Comprei") }
                     Lista.COMPRADO -> Button(onClick = { dialog = "recebi" }) { Text("Recebi") }
                 }
@@ -146,8 +160,10 @@ fun DetailScreen(m: AppModel, item0: Item, onBack: () -> Unit) {
         "editar" -> EditDialog(m, item) { dialog = null }
         "comprei" -> BuyDialog(m, item.console, item.nome, if (item.lista == Lista.PROCURADO) item else null) { dialog = null }
         "recebi" -> ReceiveDialog(m, item) { dialog = null }
+        "excluir" -> DeleteDialog(m, item, onClose = { dialog = null }, onDeleted = onBack)
         "capa", "midia" -> CoverDialog(m, item, dialog!!) { dialog = null }
     }
+    zoom?.let { ImageViewer(it, item.nome) { zoom = null } }
 }
 
 /** Trocar a capa: sugestões do catálogo por semelhança de nome, busca livre, ou uma foto sua. */
@@ -180,7 +196,7 @@ fun CoverDialog(m: AppModel, item: Item, tipo: String, onClose: () -> Unit) {
         if (tipo == "capa") {
             HorizontalDivider()
             OutlinedTextField(value = q, onValueChange = { q = it }, label = { Text("Buscar capas pelo nome") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-            if (sug.isEmpty()) Hint("Nenhuma capa parecida no catálogo" + (if (repoId.isEmpty()) " (console ${item.console} sem acervo associado)." else "."))
+            if (sug.isEmpty()) Hint("Nenhuma capa parecida no catálogo" + (if (repoId.isEmpty()) " (console ${cn(item.console)} sem acervo associado)." else "."))
             sug.chunked(3).forEach { row ->
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     row.forEach { (nome, url) ->
@@ -198,5 +214,24 @@ fun CoverDialog(m: AppModel, item: Item, tipo: String, onClose: () -> Unit) {
             onClose(); m.photo(item.chave, tipo)?.let { it.delete(); m.setPhoto(item.chave, tipo, null) }
             if (m.repo.state.value.capas[item.chave]?.get(tipo) != null) m.run { m.repo.setCapa(item.chave, tipo, "", "") }
         }, label = { Text(if (tipo == "capa") "Voltar à capa automática" else "Remover a foto") })
+    }
+}
+
+/** Imagem em tela cheia: pinça para aproximar, arrastar para mover, dois toques para aproximar/voltar. */
+@Composable
+fun ImageViewer(model: Any, title: String, onClose: () -> Unit) {
+    androidx.compose.ui.window.Dialog(onDismissRequest = onClose, properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)) {
+        var scale by remember { mutableStateOf(1f) }
+        var offset by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
+        androidx.compose.foundation.layout.Box(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color.Black)) {
+            coil3.compose.AsyncImage(model = model, contentDescription = title, contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+                modifier = Modifier.fillMaxSize()
+                    .pointerInput(Unit) { detectTapGestures(onDoubleTap = { if (scale > 1f) { scale = 1f; offset = androidx.compose.ui.geometry.Offset.Zero } else scale = 2.5f }) }
+                    .pointerInput(Unit) { detectTransformGestures { _, pan, zoomBy, _ -> scale = (scale * zoomBy).coerceIn(1f, 6f); offset = if (scale == 1f) androidx.compose.ui.geometry.Offset.Zero else offset + pan } }
+                    .graphicsLayer(scaleX = scale, scaleY = scale, translationX = offset.x, translationY = offset.y))
+            androidx.compose.material3.FilledTonalButton(onClick = onClose, modifier = Modifier.align(Alignment.TopStart).statusBarsPadding().padding(12.dp)) { Text("‹ Voltar") }
+            Text("Pinça para aproximar · dois toques para ampliar", color = androidx.compose.ui.graphics.Color.White.copy(alpha = .7f), style = MaterialTheme.typography.labelSmall,
+                modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(12.dp))
+        }
     }
 }

@@ -84,6 +84,12 @@ class CoreTest {
         assertEquals("Donkey Kong Country", io.github.vprodc83.gamecatalog.ui.cleanClip("  \nDonkey Kong Country | eBay"))
     }
 
+    @Test fun consoleNames() {
+        assertEquals("SUPER FAMICOM", io.github.vprodc83.gamecatalog.ui.cn("SFC"))
+        assertEquals("FAMICOM", io.github.vprodc83.gamecatalog.ui.cn("fc "))
+        assertEquals("SNES", io.github.vprodc83.gamecatalog.ui.cn("SNES"))
+    }
+
     @Test fun misc() {
         assertEquals("1AbCdEfGhIjKlMnOpQrStUvWxYz0123", Sheets.idFromLink("https://docs.google.com/spreadsheets/d/1AbCdEfGhIjKlMnOpQrStUvWxYz0123/edit?usp=sharing"))
         assertEquals("AA", Sheets.col(26))

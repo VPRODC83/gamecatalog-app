@@ -59,6 +59,7 @@ import io.github.vprodc83.gamecatalog.ui.SettingsScreen
 import io.github.vprodc83.gamecatalog.ui.SheetScreen
 
 class MainActivity : ComponentActivity() {
+    companion object { val splashDone = androidx.compose.runtime.mutableStateOf(false) }
     private lateinit var model: AppModel
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -68,7 +69,16 @@ class MainActivity : ComponentActivity() {
         auth.launcher = registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { auth.onResult(it.resultCode, it.data) }
         model = AppModel(applicationContext, auth)
         handleShare(intent)
-        setContent { MaterialTheme(colorScheme = if (isSystemInDarkTheme()) DarkColors else LightColors) { Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) { App(model) } } }
+        val version = io.github.vprodc83.gamecatalog.ui.Updates.appVersion(this)
+        setContent {
+            MaterialTheme(colorScheme = if (isSystemInDarkTheme()) DarkColors else LightColors) {
+                Box(Modifier.fillMaxSize()) {
+                    Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) { App(model) }
+                    // abertura uma vez por abertura do app (girar a tela não repete)
+                    if (!splashDone.value) io.github.vprodc83.gamecatalog.ui.SplashScreen(version) { splashDone.value = true }
+                }
+            }
+        }
     }
 
     override fun onNewIntent(intent: Intent) { super.onNewIntent(intent); handleShare(intent) }

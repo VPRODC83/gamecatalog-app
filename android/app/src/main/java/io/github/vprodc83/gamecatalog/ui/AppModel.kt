@@ -69,6 +69,13 @@ class AppModel(val ctx: Context, val auth: GoogleAuth) {
 
     fun refresh() = run { repo.refresh() }
 
+    /** Título de uma coluna da coleção para mostrar na tela (a coluna de região aparece como REGIÃO). */
+    fun colName(i: Int): String {
+        val c = repo.state.value.config?.colecao
+        if (c != null && i == c.regiao) return "REGIÃO"
+        return repo.state.value.head.getOrNull(i)?.ifBlank { null } ?: "Coluna ${i + 1}"
+    }
+
     // ---- fotos suas (ficam só no aparelho) ----
     private val photosFile = File(ctx.filesDir, "fotos.json")
     private val photos: JSONObject = runCatching { JSONObject(photosFile.readText()) }.getOrDefault(JSONObject())
@@ -94,4 +101,8 @@ class AppModel(val ctx: Context, val auth: GoogleAuth) {
         return url
     }
     private val autoCovers = HashMap<String, String?>()
+    fun clearAutoCovers() { autoCovers.clear() }
+
+    val covers = CoverUpdater(this)
+    var showReview by mutableStateOf(false)
 }

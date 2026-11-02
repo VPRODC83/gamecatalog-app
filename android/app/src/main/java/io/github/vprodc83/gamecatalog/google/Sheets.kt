@@ -69,6 +69,19 @@ class Sheets(private val token: suspend () -> String) {
         return "![A-Z]+(\\d+)".toRegex().find(ur)?.groupValues?.get(1)?.toIntOrNull()
     }
 
+    /** Número interno da aba (usado para apagar linhas). */
+    suspend fun tabId(id: String, title: String): Int {
+        val arr = call("GET", "$base$id?fields=sheets.properties(sheetId,title)").optJSONArray("sheets") ?: JSONArray()
+        for (i in 0 until arr.length()) { val p = arr.getJSONObject(i).getJSONObject("properties"); if (p.optString("title") == title) return p.getInt("sheetId") }
+        throw GoogleError(404, "Aba $title não encontrada")
+    }
+
+    /** Apaga uma linha inteira (as de baixo sobem uma posição). [row] começa em 1. */
+    suspend fun deleteRow(id: String, tabId: Int, row: Int) {
+        val range = JSONObject().put("sheetId", tabId).put("dimension", "ROWS").put("startIndex", row - 1).put("endIndex", row)
+        call("POST", "$base$id:batchUpdate", JSONObject().put("requests", JSONArray().put(JSONObject().put("deleteDimension", JSONObject().put("range", range)))))
+    }
+
     suspend fun addTab(id: String, title: String, hidden: Boolean = false) {
         call("POST", "$base$id:batchUpdate", JSONObject().put("requests", JSONArray().put(JSONObject().put("addSheet", JSONObject().put("properties", JSONObject().put("title", title).put("hidden", hidden))))))
     }

@@ -208,7 +208,7 @@ fun NameSearch(m: AppModel, query: String, onQuery: (String) -> Unit, onPick: (C
     OutlinedTextField(value = query, onValueChange = onQuery, label = { Text("Nome do jogo ou parte dele") }, singleLine = true, leadingIcon = { Icon(Icons.Default.Search, null) }, modifier = Modifier.fillMaxWidth(),
         trailingIcon = { TextButton(onClick = { readClip(ctx)?.first?.let { onQuery(cleanClip(it)) } }) { Text("Colar") } })
     if (m.catalog == null) Hint(m.catalogError ?: "Carregando o catálogo de jogos…")
-    Picker("Console", console, listOf("" to "Todos os consoles") + consoles.map { it to it }) { console = it }
+    Picker("Console", console, listOf("" to "Todos os consoles") + consoles.map { it to cn(it) }) { console = it }
     val q = query.trim()
     if (q.length >= 2) {
         val mine = m.repo.state.value.items.filter { (console.isEmpty() || m.repo.platformOf(it.console) == m.repo.platformOf(console)) && T.score(q, it.nome) >= 0.6 }
@@ -216,7 +216,7 @@ fun NameSearch(m: AppModel, query: String, onQuery: (String) -> Unit, onPick: (C
         val repos = if (console.isEmpty()) consoles.map { m.repo.platformOf(it) }.filter { it.isNotEmpty() }.distinct() else listOfNotNull(m.repo.platformOf(console).ifEmpty { null })
         val cat = m.catalog?.search(q, repos, limit = 10, minScore = 0.6) ?: emptyList()
         mine.forEach { i -> TextButton(onClick = { onPick(Cand(i.nome, i.console, i.console, m.repo.platformOf(i.console), origem = "planilha")) }, modifier = Modifier.fillMaxWidth()) {
-            Column(Modifier.fillMaxWidth()) { Text(i.nome); Hint("${i.console} · ${i.lista.titulo} · linha ${i.linha}") } } }
+            Column(Modifier.fillMaxWidth()) { Text(i.nome); Hint("${cn(i.console)} · ${i.lista.titulo} · linha ${i.linha}") } } }
         cat.forEach { c -> TextButton(onClick = { onPick(Cand(c.tituloLimpo, console.ifEmpty { consoleFor(m, c.repo) }, c.plataforma, c.repo, origem = "busca")) }, modifier = Modifier.fillMaxWidth()) {
             Column(Modifier.fillMaxWidth()) { Text(c.tituloLimpo); Hint("Catálogo · ${c.plataforma}") } } }
         if (mine.isEmpty() && cat.isEmpty()) Hint("Nada parecido. Tente outro nome ou outro console.")
@@ -235,10 +235,10 @@ fun CandCard(m: AppModel, c: Cand, onOpen: (Item) -> Unit, onReplace: (Cand) -> 
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Cover(cover, c.plataforma, Modifier.width(84.dp))
+                Cover(cover, cn(c.console).ifEmpty { c.plataforma }, Modifier.width(84.dp))
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(c.titulo, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    Hint(listOf(c.console, c.plataforma).filter { it.isNotBlank() }.distinct().joinToString(" · ").ifEmpty { "Console não identificado" })
+                    Hint(listOf(cn(c.console), c.plataforma).filter { it.isNotBlank() }.distinct().joinToString(" · ").ifEmpty { "Console não identificado" })
                     when {
                         have.isNotEmpty() -> Pill("Você já tem", Ok)
                         buying.isNotEmpty() -> Pill("Já está nas compras", Warn)
@@ -248,7 +248,7 @@ fun CandCard(m: AppModel, c: Cand, onOpen: (Item) -> Unit, onReplace: (Cand) -> 
                     Hint(when (c.origem) { "etiqueta" -> "Reconhecido pela etiqueta"; "planilha" -> "Escolhido da sua planilha"; "busca" -> "Escolhido no catálogo"; else -> "Nome digitado" })
                 }
             }
-            found.take(3).forEach { f -> TextButton(onClick = { onOpen(f.item) }) { Text("${f.item.lista.titulo}: ${f.item.console} · ${f.item.nome} (linha ${f.item.linha})") } }
+            found.take(3).forEach { f -> TextButton(onClick = { onOpen(f.item) }) { Text("${f.item.lista.titulo}: ${cn(f.item.console)} · ${f.item.nome} (linha ${f.item.linha})") } }
             Chips {
                 if (have.isEmpty() && buying.isEmpty()) {
                     AssistChip(onClick = { dialog = "comprei" }, label = { Text("Comprei") })

@@ -65,6 +65,38 @@ object Updates {
     }
 }
 
+/** Quanto o app ocupa no celular, separado por tipo. */
+object Storage {
+    data class Part(val nome: String, val bytes: Long, val detalhe: String = "")
+    fun size(f: File?): Long = when { f == null || !f.exists() -> 0; f.isFile -> f.length(); else -> f.listFiles()?.sumOf { size(it) } ?: 0 }
+    fun count(f: File?): Int = when { f == null || !f.exists() -> 0; f.isFile -> 1; else -> f.listFiles()?.sumOf { count(it) } ?: 0 }
+
+    fun parts(ctx: Context): List<Part> {
+        val fotos = File(ctx.filesDir, "fotos")
+        val capas = File(ctx.cacheDir, "image_cache")
+        val temp = listOf(File(ctx.cacheDir, "fotos"), File(ctx.cacheDir, "exportar"))
+        val planilha = listOf("planilha-cache.json", "ajustes.json", "fotos.json").map { File(ctx.filesDir, it) }
+        val apk = File(ctx.applicationInfo.sourceDir)
+        val known = size(fotos) + size(capas) + temp.sumOf { size(it) } + planilha.sumOf { size(it) }
+        val other = size(ctx.filesDir) + size(ctx.cacheDir) + size(ctx.codeCacheDir) - known
+        return listOf(
+            Part("Suas fotos (capas e mídias)", size(fotos), "${count(fotos)} foto(s)"),
+            Part("Capas baixadas da internet", size(capas), "podem ser baixadas de novo"),
+            Part("Fotos temporárias da identificação", temp.sumOf { size(it) }, "podem ser apagadas"),
+            Part("Cópia da planilha no celular", planilha.sumOf { size(it) }),
+            Part("Aplicativo (programa e catálogo de jogos)", size(apk)),
+            Part("Outros dados do app", maxOf(0, other))
+        )
+    }
+
+    fun human(b: Long): String = when {
+        b >= 1L shl 30 -> String.format(Locale("pt", "BR"), "%.2f GB", b / (1L shl 30).toDouble())
+        b >= 1L shl 20 -> String.format(Locale("pt", "BR"), "%.1f MB", b / (1L shl 20).toDouble())
+        b >= 1L shl 10 -> String.format(Locale("pt", "BR"), "%.0f KB", b / (1L shl 10).toDouble())
+        else -> "$b B"
+    }
+}
+
 /** Cópia de segurança: todas as abas da planilha num arquivo .xlsx, compartilhado pelo Android. */
 suspend fun exportXlsx(m: AppModel): File {
     val id = m.repo.sheetId
@@ -134,6 +166,7 @@ fun SettingsScreen(m: AppModel, onChangeSheet: () -> Unit, onMapping: () -> Unit
                 SectionTitle("Aplicativo")
                 Text("Versão $version")
                 m.auth.email?.let { Hint("Conta: $it") }
+                StorageBox(m)
                 OutlinedButton(onClick = {
                     upd = "Verificando…"
                     scope.launch {
@@ -153,4 +186,30 @@ fun SettingsScreen(m: AppModel, onChangeSheet: () -> Unit, onMapping: () -> Unit
             }
         }
     }
+}
+
+@Composable
+private fun StorageBox(m: AppModel) {
+    val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var parts by remember { mutableStateOf<List<Storage.Part>?>(null) }
+    var tick by remember { mutableStateOf(0) }
+    androidx.compose.runtime.LaunchedEffect(tick, m.photosVersion) { parts = withContext(Dispatchers.IO) { Storage.parts(ctx) } }
+    SectionTitle("Espaço ocupado no celular")
+    val p = parts
+    if (p == null) { CircularProgressIndicator(); return }
+    p.forEach { part ->
+        androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth()) {
+            Column(Modifier.weight(1f)) { Text(part.nome); if (part.detalhe.isNotBlank()) Hint(part.detalhe) }
+            Text(Storage.human(part.bytes), fontWeight = FontWeight.SemiBold)
+        }
+    }
+    androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth()) {
+        Text("Total", Modifier.weight(1f), fontWeight = FontWeight.Bold); Text(Storage.human(p.sumOf { it.bytes }), fontWeight = FontWeight.Bold)
+    }
+    Chips {
+        TextButton(onClick = { scope.launch { withContext(Dispatchers.IO) { listOf("fotos", "exportar").forEach { File(ctx.cacheDir, it).deleteRecursively() } }; tick++ } }) { Text("Apagar temporárias") }
+        TextButton(onClick = { scope.launch { withContext(Dispatchers.IO) { coil3.SingletonImageLoader.get(ctx).let { it.diskCache?.clear(); it.memoryCache?.clear() } }; m.clearAutoCovers(); m.photosVersion++; tick++ } }) { Text("Apagar capas baixadas") }
+    }
+    Hint("Suas fotos só são apagadas quando você as remove no jogo. Capas apagadas são baixadas de novo quando aparecem na tela.")
 }

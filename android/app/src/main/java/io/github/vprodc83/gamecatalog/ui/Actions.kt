@@ -38,9 +38,10 @@ import org.json.JSONObject
 /** Campo de console com sugestões dos consoles que já estão na coleção. */
 @Composable
 fun ConsoleField(m: AppModel, value: String, onChange: (String) -> Unit) {
-    OutlinedTextField(value = value, onValueChange = { onChange(it.uppercase()) }, label = { Text("Console") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+    OutlinedTextField(value = value, onValueChange = { onChange(it.uppercase()) }, label = { Text("Console") }, singleLine = true, modifier = Modifier.fillMaxWidth(),
+        supportingText = if (cn(value) != value) ({ Text(cn(value)) }) else null)
     val sug = m.repo.state.value.consoles.filter { it != value && (value.isBlank() || it.contains(value, true)) }.take(8)
-    if (sug.isNotEmpty()) Chips { sug.forEach { AssistChip(onClick = { onChange(it) }, label = { Text(it) }) } }
+    if (sug.isNotEmpty()) Chips { sug.forEach { AssistChip(onClick = { onChange(it) }, label = { Text(cn(it)) }) } }
 }
 
 @Composable
@@ -68,7 +69,7 @@ fun BuyDialog(m: AppModel, console0: String, nome0: String, want: Item?, onClose
         Field("Nome", nome) { nome = it }
         Field("Região (opcional)", regiao) { regiao = it }
         Field("Observação (onde, preço…)", obs) { obs = it }
-        Hint("Vai para a aba ${cfg?.compras ?: "COMPRAS"} como uma linha nova." + if (want != null) " Na aba ${want.aba}, a linha ${want.linha} será marcada COMPRADO." else "")
+        Hint("Vai para a aba ${cfg?.compras ?: "COMPRAS"} como uma linha nova." + if (want != null) " Na aba ${cn(want.aba)}, a linha ${want.linha} será marcada COMPRADO." else "")
     }
 }
 
@@ -92,9 +93,9 @@ fun WantDialog(m: AppModel, console0: String, nome0: String, onClose: () -> Unit
     var wi by remember { mutableStateOf(tabs.indexOfFirst { it.console.isNotBlank() && m.repo.platformOf(it.console) == m.repo.platformOf(console0) }.coerceAtLeast(0)) }
     var console by remember { mutableStateOf(console0) }; var nome by remember { mutableStateOf(nome0) }; var info by remember { mutableStateOf("") }
     ConfirmDialog("Quero este jogo", "Incluir nos procurados", onClose, enabled = nome.isNotBlank() && tabs.isNotEmpty(), onConfirm = {
-        onClose(); m.run { m.repo.addWanted(console, nome.trim(), wi, info); m.repo.refresh(); m.message = "Incluído em ${tabs[wi].aba}." }
+        onClose(); m.run { m.repo.addWanted(console, nome.trim(), wi, info); m.repo.refresh(); m.message = "Incluído em ${cn(tabs[wi].aba)}." }
     }) {
-        Picker("Aba de procurados", wi, tabs.mapIndexed { i, t -> i to t.aba }) { wi = it }
+        Picker("Aba de procurados", wi, tabs.mapIndexed { i, t -> i to cn(t.aba) }) { wi = it }
         if (tabs.getOrNull(wi)?.consoleCol ?: -1 >= 0) ConsoleField(m, console) { console = it }
         Field("Nome", nome) { nome = it }
         if (tabs.getOrNull(wi)?.info ?: -1 >= 0) Field("Observação", info) { info = it }
@@ -109,9 +110,9 @@ fun EditDialog(m: AppModel, item: Item, onClose: () -> Unit) {
     val vals = remember { mutableStateListOf<String>().apply { addAll(item.raw) } }
     var review by remember { mutableStateOf(false) }
     val diffs = vals.indices.filter { vals[it] != item.raw[it] }
-    fun label(i: Int) = "${Sheets.col(i)} · ${head.getOrNull(i)?.ifBlank { null } ?: "coluna ${i + 1}"}"
+    fun label(i: Int) = "${Sheets.col(i)} · ${m.colName(i)}"
     if (!review) ConfirmDialog("Editar ${item.nome}", "Revisar", onClose, enabled = diffs.isNotEmpty(), onConfirm = { review = true }) {
-        Hint("Aba ${item.aba}, linha ${item.linha}.")
+        Hint("Aba ${cn(item.aba)}, linha ${item.linha}.")
         vals.indices.forEach { i -> Field(label(i), vals[i]) { vals[i] = it } }
     } else ConfirmDialog("Confirmar alteração", "Sim, alterar a planilha", { review = false }, onConfirm = {
         onClose(); val novos = vals.toList()
@@ -124,11 +125,33 @@ fun EditDialog(m: AppModel, item: Item, onClose: () -> Unit) {
             m.repo.refresh()
         }
     }) {
-        Text("Atenção: isto altera uma linha que já existe na planilha (aba ${item.aba}, linha ${item.linha}).", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.SemiBold)
+        Text("Atenção: isto altera uma linha que já existe na planilha (aba ${cn(item.aba)}, linha ${item.linha}).", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.SemiBold)
         diffs.forEach { i ->
             Column { Text(label(i), fontWeight = FontWeight.SemiBold); Text("Antes: " + item.raw[i].ifEmpty { "(vazio)" }); Text("Depois: " + vals[i].ifEmpty { "(vazio)" }, color = MaterialTheme.colorScheme.primary) }
         }
         Hint("Toque em Cancelar para voltar e corrigir.")
+    }
+}
+
+/** Excluir: aviso claro, mostra a linha inteira e só apaga se ela continuar igual na planilha. */
+@Composable
+fun DeleteDialog(m: AppModel, item: Item, onClose: () -> Unit, onDeleted: () -> Unit) {
+    ConfirmDialog("Excluir ${item.nome}?", "Sim, excluir da planilha", onClose, onConfirm = {
+        onClose()
+        m.run {
+            when (m.repo.deleteFromCollection(item)) {
+                Repo.DeleteResult.Ok -> {
+                    m.repo.refresh()
+                    if (m.repo.state.value.items.none { it.chave == item.chave }) { for (t in listOf("capa", "midia")) { m.photo(item.chave, t)?.delete(); m.setPhoto(item.chave, t, null) } }
+                    m.message = "${item.nome} foi excluído da coleção."; onDeleted()
+                }
+                Repo.DeleteResult.Moved -> { m.message = "A linha ${item.linha} mudou na planilha desde a leitura. Nada foi excluído; atualize e confira."; m.repo.refresh() }
+            }
+        }
+    }) {
+        Text("Atenção: a linha ${item.linha} da aba ${cn(item.aba)} será apagada da planilha, para todas as pessoas que usam ela. Isso não pode ser desfeito pelo app.", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.SemiBold)
+        item.raw.forEachIndexed { k, v -> if (v.isNotBlank()) Text("${m.colName(k)}: $v") }
+        Hint("Se precisar recuperar, use o histórico de versões do Google Sheets (Arquivo → Histórico de versões).")
     }
 }
 
@@ -150,7 +173,7 @@ fun ReceiveDialog(m: AppModel, buy: Item, onClose: () -> Unit) {
         }
     }) {
         Hint("Linha nova no fim da aba ${c.aba}. Preencha o que quiser:")
-        vals.indices.forEach { i -> Field("${Sheets.col(i)} · ${head.getOrNull(i)?.ifBlank { null } ?: "coluna ${i + 1}"}", vals[i]) { vals[i] = it } }
+        vals.indices.forEach { i -> Field("${Sheets.col(i)} · ${m.colName(i)}", vals[i]) { vals[i] = it } }
     }
 }
 

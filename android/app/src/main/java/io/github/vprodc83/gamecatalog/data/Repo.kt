@@ -185,6 +185,17 @@ class Repo(private val dir: File, val sheets: Sheets) {
         return if (wrong.isEmpty()) EditResult.Ok else EditResult.Partial(wrong)
     }
 
+    sealed class DeleteResult { object Ok : DeleteResult(); object Moved : DeleteResult() }
+
+    /** Exclui um jogo da coleção: só apaga se a linha da planilha ainda for exatamente a que você viu. */
+    suspend fun deleteFromCollection(item: Item): DeleteResult {
+        val n = item.raw.size; val rng = "${q(item.aba)}!A${item.linha}:${col(n - 1)}${item.linha}"
+        val cur = pad(sheets.get(sheetId, rng).firstOrNull(), n)
+        if (cur != item.raw) return DeleteResult.Moved
+        sheets.deleteRow(sheetId, sheets.tabId(sheetId, item.aba), item.linha)
+        return DeleteResult.Ok
+    }
+
     /** Linha nova no fim da coleção; [valores] tem uma posição por coluna da aba. */
     suspend fun addToCollection(valores: List<String>) {
         val c = cfg.colecao

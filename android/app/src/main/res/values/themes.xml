@@ -1,5 +1,7 @@
 <resources>
     <style name="Theme.GameCatalog" parent="android:Theme.Material.Light.NoActionBar">
         <item name="android:statusBarColor">@android:color/transparent</item>
+        <!-- mesma cor da abertura animada, para não piscar branco ao abrir -->
+        <item name="android:windowBackground">@color/abertura</item>
     </style>
 </resources>
