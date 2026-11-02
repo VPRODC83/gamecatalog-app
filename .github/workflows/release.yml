@@ -123,7 +123,8 @@ jobs:
           rm -f "$ks"
           cp app/build/outputs/apk/release/app-release.apk ../gamecatalog.apk
           cd ..
-          sha256sum gamecatalog.apk >> SHA256SUMS
+          # arquivo próprio: o SHA256SUMS lista só o app.zip, que é o que os instaladores do site baixam e conferem
+          sha256sum gamecatalog.apk > gamecatalog.apk.sha256
           echo "ok=sim" >> "$GITHUB_OUTPUT"
 
       - name: Atestado de proveniência (prova que o app.zip e o APK saíram deste workflow)
@@ -142,7 +143,7 @@ jobs:
           ANTERIOR: ${{ steps.v.outputs.anterior }}
         run: |
           set -euo pipefail
-          files="app.zip SHA256SUMS"; [ -f gamecatalog.apk ] && files="$files gamecatalog.apk"
+          files="app.zip SHA256SUMS"; [ -f gamecatalog.apk ] && files="$files gamecatalog.apk gamecatalog.apk.sha256"
           if [ -n "${ANTERIOR:-}" ] && git rev-parse -q --verify "refs/tags/$ANTERIOR" >/dev/null; then range="$ANTERIOR..$GITHUB_SHA"; else range="$GITHUB_SHA"; fi
           mudancas="$(git log --no-merges --pretty='- %s' "$range" | head -40)"
           notes="$(printf 'Versão %s do Game Catalog.\n\nMudanças:\n%s\n\nCelular Android: baixe o gamecatalog.apk abaixo e abra para instalar.\n\nOs instaladores conferem o atestado de proveniência antes de publicar.' "$TAG" "$mudancas")"
