@@ -1,5 +1,6 @@
 package io.github.vprodc83.gamecatalog.data
 
+import io.github.vprodc83.gamecatalog.ui.tr
 import io.github.vprodc83.gamecatalog.core.Platforms
 import io.github.vprodc83.gamecatalog.core.Text
 import io.github.vprodc83.gamecatalog.google.GoogleError
@@ -50,7 +51,7 @@ class Repo(private val dir: File, val sheets: Sheets) {
 
     /** Lê a planilha inteira (coleção, procurados, compras, capas e preços) e guarda a cópia no aparelho. */
     suspend fun refresh(): State {
-        val id = sheetId.ifBlank { throw IllegalStateException("Nenhuma planilha escolhida") }
+        val id = sheetId.ifBlank { throw IllegalStateException(tr("Nenhuma planilha escolhida")) }
         val meta = sheets.meta(id)
         val cfg = if (Config.TAB in meta.tabs) Config.parse(sheets.get(id, q(Config.TAB) + "!A1").firstOrNull()?.firstOrNull()) else null
         if (cfg == null) { _state.value = State(sheetId = id, title = meta.title); return _state.value }
@@ -162,7 +163,7 @@ class Repo(private val dir: File, val sheets: Sheets) {
 
     // ---------------- gravações ----------------
 
-    private val cfg get() = _state.value.config ?: throw IllegalStateException("Planilha sem configuração")
+    private val cfg get() = _state.value.config ?: throw IllegalStateException(tr("Planilha sem configuração"))
 
     sealed class EditResult { object Ok : EditResult(); object Moved : EditResult(); data class Partial(val wrong: List<String>) : EditResult() }
 
@@ -209,7 +210,7 @@ class Repo(private val dir: File, val sheets: Sheets) {
 
     /** Inclui na primeira aba de procurados (ou na indicada). */
     suspend fun addWanted(console: String, nome: String, wi: Int = 0, info: String = "") {
-        val w = cfg.procurados.getOrNull(wi) ?: throw IllegalStateException("Nenhuma aba de procurados configurada")
+        val w = cfg.procurados.getOrNull(wi) ?: throw IllegalStateException(tr("Nenhuma aba de procurados configurada"))
         val n = maxOf(w.nome, w.status, w.consoleCol, w.info) + 1
         val row = MutableList(n) { "" }.also { it[w.nome] = nome; if (w.consoleCol >= 0) it[w.consoleCol] = console; if (w.info >= 0) it[w.info] = info }
         sheets.append(sheetId, "${q(w.aba)}!A1:${col(n - 1)}1", listOf(row))
@@ -223,7 +224,7 @@ class Repo(private val dir: File, val sheets: Sheets) {
             val w = cfg.procurados.getOrNull(want.wi) ?: return null
             if (w.status < 0) return null
             val cur = sheets.get(sheetId, "${q(w.aba)}!${col(w.nome)}${want.linha}").firstOrNull()?.firstOrNull()
-            if (Text.norm(cur) != Text.norm(want.nome)) return "A aba ${w.aba} mudou desde a leitura, então não marquei COMPRADO lá."
+            if (Text.norm(cur) != Text.norm(want.nome)) return tr("A aba {0} mudou desde a leitura, então não marquei COMPRADO lá.", w.aba)
             sheets.put(sheetId, "${q(w.aba)}!${col(w.status)}${want.linha}", listOf(listOf("COMPRADO")))
         }
         return null
@@ -280,13 +281,13 @@ class Repo(private val dir: File, val sheets: Sheets) {
     companion object {
         fun today(): String = SimpleDateFormat("dd/MM/yyyy", Locale("pt", "BR")).format(Date())
         fun friendly(e: Throwable): String = when {
-            e is io.github.vprodc83.gamecatalog.google.GoogleAuth.NeedsLogin -> "Entre com a sua conta Google."
-            e is GoogleError && e.status == 401 -> "A sessão do Google expirou. Toque em Atualizar."
-            e is GoogleError && e.status == 403 -> "O Google negou o acesso a esta planilha. Confira se ela foi compartilhada com a sua conta como Editor."
-            e is GoogleError && e.status == 404 -> "Planilha ou aba não encontrada."
-            e is GoogleError -> "Erro do Google: ${e.message}"
-            e is java.net.UnknownHostException || e is java.net.SocketTimeoutException || e is java.net.ConnectException -> "Sem internet no momento."
-            else -> e.message ?: "Algo deu errado."
+            e is io.github.vprodc83.gamecatalog.google.GoogleAuth.NeedsLogin -> tr("Entre com a sua conta Google.")
+            e is GoogleError && e.status == 401 -> tr("A sessão do Google expirou. Toque em Atualizar.")
+            e is GoogleError && e.status == 403 -> tr("O Google negou o acesso a esta planilha. Confira se ela foi compartilhada com a sua conta como Editor.")
+            e is GoogleError && e.status == 404 -> tr("Planilha ou aba não encontrada.")
+            e is GoogleError -> tr("Erro do Google: {0}", e.message)
+            e is java.net.UnknownHostException || e is java.net.SocketTimeoutException || e is java.net.ConnectException -> tr("Sem internet no momento.")
+            else -> e.message ?: tr("Algo deu errado.")
         }
     }
 }

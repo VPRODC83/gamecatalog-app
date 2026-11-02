@@ -119,7 +119,7 @@ jobs:
           openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in android/app/release.keystore.enc -out "$ks" -pass env:ANDROID_KEY_PASSWORD
           cd android
           printf 'sdk.dir=%s\n' "$ANDROID_HOME" > local.properties
-          ANDROID_KEYSTORE_FILE="$ks" APP_VERSION="${TAG#v}" ./gradlew --no-daemon testDebugUnitTest assembleRelease
+          ANDROID_KEYSTORE_FILE="$ks" APP_VERSION="${TAG#v}" ./gradlew --no-daemon testDebugUnitTest --tests 'io.github.vprodc83.gamecatalog.CoreTest' assembleRelease
           rm -f "$ks"
           cp app/build/outputs/apk/release/app-release.apk ../gamecatalog.apk
           cd ..

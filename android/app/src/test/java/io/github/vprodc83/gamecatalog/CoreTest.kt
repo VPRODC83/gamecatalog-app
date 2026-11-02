@@ -90,6 +90,32 @@ class CoreTest {
         assertEquals("SNES", io.github.vprodc83.gamecatalog.ui.cn("SNES"))
     }
 
+    @Test fun translationsCoverEveryText() {
+        // todo texto tr("…") do código precisa existir em cada idioma completo, com os mesmos {0}, {1}…
+        val code = File("src/main/java").walkTopDown().filter { it.extension == "kt" }.joinToString("\n") { it.readText() }
+        val keys = Regex("tr\\(\"((?:[^\"\\\\]|\\\\.)*)\"").findAll(code).map { it.groupValues[1].replace("\\\"", "\"") }.toSet() +
+            setOf("Coleção", "Procurados", "Compras", "Identificar", "Ajustes")
+        assertTrue("só ${keys.size} textos encontrados", keys.size > 240)
+        val dir = File("src/main/assets/i18n")
+        for (f in dir.listFiles()!!.filter { it.name != "en-GB.json" }) {
+            val o = org.json.JSONObject(f.readText())
+            val missing = keys.filter { !o.has(it) }
+            assertTrue("${f.name} sem: ${missing.take(5)}", missing.isEmpty())
+            for (k in keys) {
+                val ph = Regex("\\{\\d}").findAll(k).map { it.value }.sorted().toList()
+                assertEquals("${f.name}: $k", ph, Regex("\\{\\d}").findAll(o.getString(k)).map { it.value }.sorted().toList())
+            }
+        }
+        assertEquals(13, dir.listFiles()!!.size)
+    }
+
+    @Test fun trFormats() {
+        io.github.vprodc83.gamecatalog.ui.I18n.useTable("en-US", mapOf("Versão {0}" to "Version {0}"))
+        assertEquals("Version 1.2", io.github.vprodc83.gamecatalog.ui.tr("Versão {0}", "1.2"))
+        assertEquals("Sem tradução 3", io.github.vprodc83.gamecatalog.ui.tr("Sem tradução {0}", 3))
+        io.github.vprodc83.gamecatalog.ui.I18n.useTable("pt-BR", emptyMap())
+    }
+
     @Test fun misc() {
         assertEquals("1AbCdEfGhIjKlMnOpQrStUvWxYz0123", Sheets.idFromLink("https://docs.google.com/spreadsheets/d/1AbCdEfGhIjKlMnOpQrStUvWxYz0123/edit?usp=sharing"))
         assertEquals("AA", Sheets.col(26))

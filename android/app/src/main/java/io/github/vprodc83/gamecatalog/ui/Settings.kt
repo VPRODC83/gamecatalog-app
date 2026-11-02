@@ -80,12 +80,12 @@ object Storage {
         val known = size(fotos) + size(capas) + temp.sumOf { size(it) } + planilha.sumOf { size(it) }
         val other = size(ctx.filesDir) + size(ctx.cacheDir) + size(ctx.codeCacheDir) - known
         return listOf(
-            Part("Suas fotos (capas e mídias)", size(fotos), "${count(fotos)} foto(s)"),
-            Part("Capas baixadas da internet", size(capas), "podem ser baixadas de novo"),
-            Part("Fotos temporárias da identificação", temp.sumOf { size(it) }, "podem ser apagadas"),
-            Part("Cópia da planilha no celular", planilha.sumOf { size(it) }),
-            Part("Aplicativo (programa e catálogo de jogos)", size(apk)),
-            Part("Outros dados do app", maxOf(0, other))
+            Part(tr("Suas fotos (capas e mídias)"), size(fotos), "${count(fotos)} foto(s)"),
+            Part(tr("Capas baixadas da internet"), size(capas), tr("podem ser baixadas de novo")),
+            Part(tr("Fotos temporárias da identificação"), temp.sumOf { size(it) }, tr("podem ser apagadas")),
+            Part(tr("Cópia da planilha no celular"), planilha.sumOf { size(it) }),
+            Part(tr("Aplicativo (programa e catálogo de jogos)"), size(apk)),
+            Part(tr("Outros dados do app"), maxOf(0, other))
         )
     }
 
@@ -123,29 +123,29 @@ fun SettingsScreen(m: AppModel, onChangeSheet: () -> Unit, onMapping: () -> Unit
     Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                SectionTitle("Planilha")
-                Text(st.title.ifBlank { "(sem nome)" }, fontWeight = FontWeight.SemiBold)
-                Hint("${st.of(io.github.vprodc83.gamecatalog.data.Lista.COLECAO).size} na coleção · ${st.of(io.github.vprodc83.gamecatalog.data.Lista.PROCURADO).size} procurados · ${st.of(io.github.vprodc83.gamecatalog.data.Lista.COMPRADO).size} a receber")
-                if (st.atualizadoEm > 0) Hint("Lida em " + SimpleDateFormat("dd/MM/yyyy HH:mm", Locale("pt", "BR")).format(Date(st.atualizadoEm)) + if (st.offline) " (sem internet agora)" else "")
+                SectionTitle(tr("Planilha"))
+                Text(st.title.ifBlank { tr("(sem nome)") }, fontWeight = FontWeight.SemiBold)
+                Hint(tr("{0} na coleção · {1} procurados · {2} a receber", st.of(io.github.vprodc83.gamecatalog.data.Lista.COLECAO).size, st.of(io.github.vprodc83.gamecatalog.data.Lista.PROCURADO).size, st.of(io.github.vprodc83.gamecatalog.data.Lista.COMPRADO).size))
+                if (st.atualizadoEm > 0) Hint(tr("Lida em ") + SimpleDateFormat("dd/MM/yyyy HH:mm", Locale("pt", "BR")).format(Date(st.atualizadoEm)) + if (st.offline) tr(" (sem internet agora)") else "")
                 Chips {
-                    OutlinedButton(onClick = { m.refresh() }) { Text("Atualizar agora") }
-                    OutlinedButton(onClick = { openUrl(ctx, "https://docs.google.com/spreadsheets/d/${m.repo.sheetId}/edit") }) { Text("Abrir no Google Sheets") }
+                    OutlinedButton(onClick = { m.refresh() }) { Text(tr("Atualizar agora")) }
+                    OutlinedButton(onClick = { openUrl(ctx, "https://docs.google.com/spreadsheets/d/${m.repo.sheetId}/edit") }) { Text(tr("Abrir no Google Sheets")) }
                     OutlinedButton(onClick = {
                         ctx.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain")
-                            .putExtra(Intent.EXTRA_TEXT, "Abra no Game Catalog a nossa planilha de jogos: https://docs.google.com/spreadsheets/d/${m.repo.sheetId}/edit"), "Enviar o link da planilha"))
-                    }) { Text("Enviar link para alguém") }
+                            .putExtra(Intent.EXTRA_TEXT, tr("Abra no Game Catalog a nossa planilha de jogos: https://docs.google.com/spreadsheets/d/{0}/edit", m.repo.sheetId)), tr("Enviar o link da planilha")))
+                    }) { Text(tr("Enviar link para alguém")) }
                 }
-                Hint("Para outra pessoa usar a mesma coleção: compartilhe a planilha com o e-mail dela como Editor (no Google Sheets) e mande o link.")
+                Hint(tr("Para outra pessoa usar a mesma coleção: compartilhe a planilha com o e-mail dela como Editor (no Google Sheets) e mande o link."))
                 Chips {
-                    TextButton(onClick = onMapping) { Text("Abas e colunas") }
-                    TextButton(onClick = onChangeSheet) { Text("Usar outra planilha") }
+                    TextButton(onClick = onMapping) { Text(tr("Abas e colunas")) }
+                    TextButton(onClick = onChangeSheet) { Text(tr("Usar outra planilha")) }
                 }
             }
         }
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                SectionTitle("Cópia de segurança")
-                Hint("Gera um arquivo Excel (.xlsx) com todas as abas, para guardar no Drive, mandar por e-mail etc.")
+                SectionTitle(tr("Cópia de segurança"))
+                Hint(tr("Gera um arquivo Excel (.xlsx) com todas as abas, para guardar no Drive, mandar por e-mail etc."))
                 Chips {
                     OutlinedButton(enabled = !exporting, onClick = {
                         exporting = true
@@ -153,36 +153,37 @@ fun SettingsScreen(m: AppModel, onChangeSheet: () -> Unit, onMapping: () -> Unit
                             try {
                                 val f = exportXlsx(m)
                                 ctx.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-                                    .putExtra(Intent.EXTRA_STREAM, fileUri(ctx, f)).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION), "Salvar a cópia em"))
+                                    .putExtra(Intent.EXTRA_STREAM, fileUri(ctx, f)).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION), tr("Salvar a cópia em")))
                             } catch (e: Exception) { m.message = Repo.friendly(e) } finally { exporting = false }
                         }
-                    }) { Text("Exportar .xlsx") }
+                    }) { Text(tr("Exportar .xlsx")) }
                     if (exporting) CircularProgressIndicator()
                 }
             }
         }
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                SectionTitle("Aplicativo")
-                Text("Versão $version")
-                m.auth.email?.let { Hint("Conta: $it") }
+                SectionTitle(tr("Aplicativo"))
+                Text(tr("Versão {0}", version))
+                m.auth.email?.let { Hint(tr("Conta: {0}", it)) }
+                Picker(tr("Idioma"), I18n.lang, I18n.langs.map { it.code to it.nome }) { I18n.set(it) }
                 StorageBox(m)
                 OutlinedButton(onClick = {
-                    upd = "Verificando…"
+                    upd = tr("Verificando…")
                     scope.launch {
                         val r = withContext(Dispatchers.IO) { runCatching { Updates.latest() }.getOrNull() }
                         updRel = r?.takeIf { Updates.newer(it.versao, version) }
-                        upd = when { r == null -> "Não consegui verificar agora."; updRel != null -> "Versão ${r.versao} disponível."; else -> "Você está na versão mais nova." }
+                        upd = when { r == null -> tr("Não consegui verificar agora."); updRel != null -> tr("Versão {0} disponível.", r.versao); else -> tr("Você está na versão mais nova.") }
                     }
-                }) { Text("Procurar atualização") }
+                }) { Text(tr("Procurar atualização")) }
                 upd?.let { Hint(it) }
-                updRel?.let { r -> OutlinedButton(onClick = { openUrl(ctx, r.apk ?: r.pagina) }) { Text("Baixar a versão ${r.versao}") } }
+                updRel?.let { r -> OutlinedButton(onClick = { openUrl(ctx, r.apk ?: r.pagina) }) { Text(tr("Baixar a versão {0}", r.versao)) } }
                 Chips {
-                    TextButton(onClick = { openUrl(ctx, "https://vprodc83.github.io/privacidade.html") }) { Text("Privacidade") }
-                    TextButton(onClick = { openUrl(ctx, "https://vprodc83.github.io/termos.html") }) { Text("Termos") }
-                    TextButton(onClick = { scope.launch { m.auth.signOut(); m.loggedIn = false; onSignedOut() } }) { Text("Sair da conta") }
+                    TextButton(onClick = { openUrl(ctx, "https://vprodc83.github.io/privacidade.html") }) { Text(tr("Privacidade")) }
+                    TextButton(onClick = { openUrl(ctx, "https://vprodc83.github.io/termos.html") }) { Text(tr("Termos")) }
+                    TextButton(onClick = { scope.launch { m.auth.signOut(); m.loggedIn = false; onSignedOut() } }) { Text(tr("Sair da conta")) }
                 }
-                Hint("Identificação feita no próprio aparelho (leitura da etiqueta) e pelo Google Lens. Capas: libretro-thumbnails. Valores: PriceCharting.")
+                Hint(tr("Identificação feita no próprio aparelho (leitura da etiqueta) e pelo Google Lens. Capas: libretro-thumbnails. Valores: PriceCharting."))
             }
         }
     }
@@ -195,7 +196,7 @@ private fun StorageBox(m: AppModel) {
     var parts by remember { mutableStateOf<List<Storage.Part>?>(null) }
     var tick by remember { mutableStateOf(0) }
     androidx.compose.runtime.LaunchedEffect(tick, m.photosVersion) { parts = withContext(Dispatchers.IO) { Storage.parts(ctx) } }
-    SectionTitle("Espaço ocupado no celular")
+    SectionTitle(tr("Espaço ocupado no celular"))
     val p = parts
     if (p == null) { CircularProgressIndicator(); return }
     p.forEach { part ->
@@ -205,11 +206,11 @@ private fun StorageBox(m: AppModel) {
         }
     }
     androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth()) {
-        Text("Total", Modifier.weight(1f), fontWeight = FontWeight.Bold); Text(Storage.human(p.sumOf { it.bytes }), fontWeight = FontWeight.Bold)
+        Text(tr("Total"), Modifier.weight(1f), fontWeight = FontWeight.Bold); Text(Storage.human(p.sumOf { it.bytes }), fontWeight = FontWeight.Bold)
     }
     Chips {
-        TextButton(onClick = { scope.launch { withContext(Dispatchers.IO) { listOf("fotos", "exportar").forEach { File(ctx.cacheDir, it).deleteRecursively() } }; tick++ } }) { Text("Apagar temporárias") }
-        TextButton(onClick = { scope.launch { withContext(Dispatchers.IO) { coil3.SingletonImageLoader.get(ctx).let { it.diskCache?.clear(); it.memoryCache?.clear() } }; m.clearAutoCovers(); m.photosVersion++; tick++ } }) { Text("Apagar capas baixadas") }
+        TextButton(onClick = { scope.launch { withContext(Dispatchers.IO) { listOf("fotos", "exportar").forEach { File(ctx.cacheDir, it).deleteRecursively() } }; tick++ } }) { Text(tr("Apagar temporárias")) }
+        TextButton(onClick = { scope.launch { withContext(Dispatchers.IO) { coil3.SingletonImageLoader.get(ctx).let { it.diskCache?.clear(); it.memoryCache?.clear() } }; m.clearAutoCovers(); m.photosVersion++; tick++ } }) { Text(tr("Apagar capas baixadas")) }
     }
-    Hint("Suas fotos só são apagadas quando você as remove no jogo. Capas apagadas são baixadas de novo quando aparecem na tela.")
+    Hint(tr("Suas fotos só são apagadas quando você as remove no jogo. Capas apagadas são baixadas de novo quando aparecem na tela."))
 }

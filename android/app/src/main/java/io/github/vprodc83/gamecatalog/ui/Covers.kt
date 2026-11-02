@@ -54,7 +54,7 @@ class CoverUpdater(private val m: AppModel) {
 
     fun start(ctx: Context) {
         if (running) return
-        val cat = m.catalog ?: run { summary = m.catalogError ?: "O catálogo de jogos ainda está carregando."; return }
+        val cat = m.catalog ?: run { summary = m.catalogError ?: tr("O catálogo de jogos ainda está carregando."); return }
         val items = m.repo.state.value.of(Lista.COLECAO).distinctBy { it.chave }
         running = true; done = 0; total = items.size; summary = null; reviews.clear()
         job = m.scope.launch {
@@ -86,17 +86,17 @@ class CoverUpdater(private val m: AppModel) {
             }
             m.photosVersion++
             summary = buildString {
-                append("$found capa(s) atualizadas")
-                if (missing > 0) append(" · $missing sem capa no catálogo")
-                if (failed > 0) append(" · $failed não baixaram (internet?)")
-                append(". Fotos de cartuchos e discos: não há fonte gratuita na internet; as suas fotos continuam como estão.")
-                if (reviews.isNotEmpty()) append(" Você tem ${reviews.size} foto(s) sua(s) para comparar.")
+                append(tr("{0} capa(s) atualizadas", found))
+                if (missing > 0) append(tr(" · {0} sem capa no catálogo", missing))
+                if (failed > 0) append(tr(" · {0} não baixaram (internet?)", failed))
+                append(tr(". Fotos de cartuchos e discos: não há fonte gratuita na internet; as suas fotos continuam como estão."))
+                if (reviews.isNotEmpty()) append(tr(" Você tem {0} foto(s) sua(s) para comparar.", reviews.size))
             }
             running = false
         }
     }
 
-    fun cancel() { job?.cancel(); running = false; summary = "Atualização interrompida ($done de $total)." }
+    fun cancel() { job?.cancel(); running = false; summary = tr("Atualização interrompida ({0} de {1}).", done, total) }
 }
 
 /** Cartão no topo da Coleção: botão, progresso e resultado. */
@@ -107,13 +107,13 @@ fun CoverUpdateCard(m: AppModel) {
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             if (u.running) {
-                Text("Atualizando capas: ${u.done} de ${u.total}")
+                Text(tr("Atualizando capas: {0} de {1}", u.done, u.total))
                 LinearProgressIndicator(progress = { if (u.total == 0) 0f else u.done.toFloat() / u.total }, modifier = Modifier.fillMaxWidth())
-                TextButton(onClick = { u.cancel() }) { Text("Parar") }
+                TextButton(onClick = { u.cancel() }) { Text(tr("Parar")) }
             } else {
-                OutlinedButton(onClick = { u.start(ctx) }, modifier = Modifier.fillMaxWidth()) { Text("Atualizar capas pela internet") }
+                OutlinedButton(onClick = { u.start(ctx) }, modifier = Modifier.fillMaxWidth()) { Text(tr("Atualizar capas pela internet")) }
                 u.summary?.let { Hint(it) }
-                if (u.reviews.isNotEmpty()) TextButton(onClick = { m.showReview = true }) { Text("Comparar as minhas fotos (${u.reviews.size})") }
+                if (u.reviews.isNotEmpty()) TextButton(onClick = { m.showReview = true }) { Text(tr("Comparar as minhas fotos ({0})", u.reviews.size)) }
             }
         }
     }
@@ -127,20 +127,20 @@ fun ReviewDialog(m: AppModel) {
     val u = m.covers
     val r = u.reviews.firstOrNull() ?: return
     AlertDialog(onDismissRequest = { m.showReview = false },
-        title = { Text("Trocar a sua foto?") },
+        title = { Text(tr("Trocar a sua foto?")) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(r.item.nome, fontWeight = FontWeight.SemiBold)
-                Hint("${cn(r.item.console)} · faltam ${u.reviews.size}")
+                Hint(tr("{0} · faltam {1}", cn(r.item.console), u.reviews.size))
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Column(Modifier.weight(1f)) { Text("Sua foto", style = MaterialTheme.typography.labelMedium); Cover(r.mine, "", Modifier.fillMaxWidth()) }
-                    Column(Modifier.weight(1f)) { Text("Da internet", style = MaterialTheme.typography.labelMedium); Cover(r.web, "", Modifier.fillMaxWidth()) }
+                    Column(Modifier.weight(1f)) { Text(tr("Sua foto"), style = MaterialTheme.typography.labelMedium); Cover(r.mine, "", Modifier.fillMaxWidth()) }
+                    Column(Modifier.weight(1f)) { Text(tr("Da internet"), style = MaterialTheme.typography.labelMedium); Cover(r.web, "", Modifier.fillMaxWidth()) }
                 }
-                TextButton(onClick = { u.reviews.clear(); m.showReview = false }) { Text("Manter todas as minhas fotos") }
+                TextButton(onClick = { u.reviews.clear(); m.showReview = false }) { Text(tr("Manter todas as minhas fotos")) }
             }
         },
         confirmButton = { TextButton(onClick = {
             m.photo(r.item.chave, "capa")?.delete(); m.setPhoto(r.item.chave, "capa", null); u.reviews.removeAt(0)
-        }) { Text("Usar a da internet") } },
-        dismissButton = { TextButton(onClick = { u.reviews.removeAt(0) }) { Text("Manter a minha") } })
+        }) { Text(tr("Usar a da internet")) } },
+        dismissButton = { TextButton(onClick = { u.reviews.removeAt(0) }) { Text(tr("Manter a minha")) } })
 }

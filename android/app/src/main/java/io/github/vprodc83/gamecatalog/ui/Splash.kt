@@ -102,7 +102,7 @@ fun SplashScreen(version: String, onDone: () -> Unit) {
                     Text(c.toString(), color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.alpha(a).graphicsLayer { translationY = (1f - a) * 30f })
                 }
             }
-            Text("versão $version", color = Lilac, fontSize = 12.sp, letterSpacing = 1.sp, modifier = Modifier.alpha(ver.value).padding(top = 4.dp))
+            Text(tr("versão {0}", version), color = Lilac, fontSize = 12.sp, letterSpacing = 1.sp, modifier = Modifier.alpha(ver.value).padding(top = 4.dp))
             Text(tr("Sua coleção de videogames"), color = Lilac, fontSize = 13.sp, modifier = Modifier.alpha(tag.value).padding(top = 18.dp))
         }
         Column(Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 28.dp).alpha(foot.value), horizontalAlignment = Alignment.CenterHorizontally) {

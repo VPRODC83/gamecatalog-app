@@ -1,0 +1,22 @@
+{
+"3": " (console {0} has no linked catalogue).",
+"9": " · {0} with no cover in the catalogue",
+"39": "App (program and game catalogue)",
+"54": "Loading the game catalogue…",
+"55": "Catalogue · {0}",
+"79": "Spreadsheet copy on the mobile",
+"88": "Sign in with the mobile's Google account. The app reads and writes the collection spreadsheet you choose; nothing is sent to anyone else.",
+"96": "Chosen from the catalogue",
+"97": "Space used on the mobile",
+"116": "Identification done on the device itself (label reading) and with Google Lens. Covers: libretro-thumbnails. Prices: PriceCharting.",
+"141": "No similar cover in the catalogue",
+"149": "I couldn't open the game catalogue ({0}). Searching the spreadsheet still works.",
+"155": "This mobile's Google Play Services doesn't offer this sign-in. Update Google Play Services.",
+"159": "The game catalogue is still loading.",
+"160": "The game catalogue is still loading. Try again in a moment.",
+"162": "Note",
+"238": "or the tab's fixed console (e.g. SFC)",
+"133": "Shopping list",
+"68": "Purchases",
+"77": "Check worldwide price"
+}

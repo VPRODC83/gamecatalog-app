@@ -69,20 +69,20 @@ fun ListScreen(m: AppModel, lista: Lista, onOpen: (Item) -> Unit) {
     LazyColumn(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         item {
             Column(Modifier.padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(value = q, onValueChange = { q = it }, label = { Text("Procurar em ${lista.titulo.lowercase()}") }, singleLine = true, leadingIcon = { Icon(Icons.Default.Search, null) }, modifier = Modifier.fillMaxWidth())
-                if (consoles.size > 1) Picker("Console", console, listOf("" to "Todos (${all.size})") + consoles.map { c -> c to "${cn(c)} (${all.count { it.console.equals(c, true) }})" }) { console = it }
+                OutlinedTextField(value = q, onValueChange = { q = it }, label = { Text(tr("Procurar em {0}", tr(lista.titulo).lowercase())) }, singleLine = true, leadingIcon = { Icon(Icons.Default.Search, null) }, modifier = Modifier.fillMaxWidth())
+                if (consoles.size > 1) Picker(tr("Console"), console, listOf("" to tr("Todos ({0})", all.size)) + consoles.map { c -> c to "${cn(c)} (${all.count { it.console.equals(c, true) }})" }) { console = it }
                 if (lista == Lista.COLECAO && all.isNotEmpty()) CoverUpdateCard(m)
                 Hint(when {
-                    st.offline -> "Sem internet: mostrando a última cópia salva no aparelho. ${shown.size} jogo(s)."
+                    st.offline -> tr("Sem internet: mostrando a última cópia salva no aparelho. {0} jogo(s).", shown.size)
                     else -> "${shown.size} jogo(s)"
                 })
             }
         }
         if (all.isEmpty()) item {
             Hint(when (lista) {
-                Lista.COLECAO -> "Sua coleção está vazia. Use Identificar para incluir jogos."
-                Lista.PROCURADO -> if (st.config?.procurados.isNullOrEmpty()) "Nenhuma aba de procurados configurada (veja em Ajustes)." else "Nenhum jogo procurado em aberto."
-                Lista.COMPRADO -> "Nenhuma compra aguardando chegada. Quando comprar um jogo, toque em Comprei."
+                Lista.COLECAO -> tr("Sua coleção está vazia. Use Identificar para incluir jogos.")
+                Lista.PROCURADO -> if (st.config?.procurados.isNullOrEmpty()) tr("Nenhuma aba de procurados configurada (veja em Ajustes).") else tr("Nenhum jogo procurado em aberto.")
+                Lista.COMPRADO -> tr("Nenhuma compra aguardando chegada. Quando comprar um jogo, toque em Comprei.")
             })
         }
         items(shown, key = { it.id }) { i -> ItemRow(m, i) { onOpen(i) } }
@@ -115,17 +115,17 @@ fun DetailScreen(m: AppModel, item0: Item, onBack: () -> Unit) {
     var zoom by remember { mutableStateOf<Any?>(null) }
     val repoId = m.repo.platformOf(item.console)
     LazyColumn(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        item { TextButton(onClick = onBack) { Text("‹ Voltar") } }
+        item { TextButton(onClick = onBack) { Text(tr("‹ Voltar")) } }
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) { val cv = m.coverFor(item, "capa"); Cover(cv, cn(item.console), Modifier.fillMaxWidth().clickable(enabled = cv != null) { zoom = cv }); TextButton(onClick = { dialog = "capa" }) { Text("Trocar capa") } }
-                Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) { val md = m.coverFor(item, "midia"); Cover(md, "Foto do cartucho/disco", Modifier.fillMaxWidth().clickable(enabled = md != null) { zoom = md }); TextButton(onClick = { dialog = "midia" }) { Text("Foto da mídia") } }
+                Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) { val cv = m.coverFor(item, "capa"); Cover(cv, cn(item.console), Modifier.fillMaxWidth().clickable(enabled = cv != null) { zoom = cv }); TextButton(onClick = { dialog = "capa" }) { Text(tr("Trocar capa")) } }
+                Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) { val md = m.coverFor(item, "midia"); Cover(md, tr("Foto do cartucho/disco"), Modifier.fillMaxWidth().clickable(enabled = md != null) { zoom = md }); TextButton(onClick = { dialog = "midia" }) { Text(tr("Foto da mídia")) } }
             }
         }
         item {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(item.nome, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                Hint("${item.lista.titulo} · aba ${cn(item.aba)} · linha ${item.linha}")
+                Hint(tr("{0} · aba {1} · linha {2}", tr(item.lista.titulo), cn(item.aba), item.linha))
             }
         }
         item {
@@ -134,7 +134,7 @@ fun DetailScreen(m: AppModel, item0: Item, onBack: () -> Unit) {
                     val consoleCol = st.config?.colecao?.console ?: -1
                     if (item.lista == Lista.COLECAO) item.raw.forEachIndexed { k, v -> if (v.isNotBlank()) Row { Text(m.colName(k) + ": ", fontWeight = FontWeight.SemiBold); Text(if (k == consoleCol) cn(v) else v) } }
                     else {
-                        listOf("Console" to cn(item.console), "Região" to item.regiao, "Status" to item.status, "Observação" to item.info.ifBlank { item.obs }, "Data da compra" to item.data)
+                        listOf(tr("Console") to cn(item.console), tr("Região") to item.regiao, tr("Status") to item.status, tr("Observação") to item.info.ifBlank { item.obs }, tr("Data da compra") to item.data)
                             .filter { it.second.isNotBlank() }.forEach { (k, v) -> Row { Text("$k: ", fontWeight = FontWeight.SemiBold); Text(v) } }
                     }
                 }
@@ -144,12 +144,12 @@ fun DetailScreen(m: AppModel, item0: Item, onBack: () -> Unit) {
             Chips {
                 when (item.lista) {
                     Lista.COLECAO -> {
-                        Button(onClick = { dialog = "editar" }) { Text("Editar dados") }
-                        OutlinedButton(onClick = { dialog = "comprei" }) { Text("Comprei outra cópia") }
-                        OutlinedButton(onClick = { dialog = "excluir" }, colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text("Excluir") }
+                        Button(onClick = { dialog = "editar" }) { Text(tr("Editar dados")) }
+                        OutlinedButton(onClick = { dialog = "comprei" }) { Text(tr("Comprei outra cópia")) }
+                        OutlinedButton(onClick = { dialog = "excluir" }, colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text(tr("Excluir")) }
                     }
-                    Lista.PROCURADO -> Button(onClick = { dialog = "comprei" }) { Text("Comprei") }
-                    Lista.COMPRADO -> Button(onClick = { dialog = "recebi" }) { Text("Recebi") }
+                    Lista.PROCURADO -> Button(onClick = { dialog = "comprei" }) { Text(tr("Comprei")) }
+                    Lista.COMPRADO -> Button(onClick = { dialog = "recebi" }) { Text(tr("Recebi")) }
                 }
             }
         }
@@ -187,22 +187,22 @@ fun CoverDialog(m: AppModel, item: Item, tipo: String, onClose: () -> Unit) {
             keep(tmp)
         }
     }
-    ConfirmDialog(if (tipo == "capa") "Escolher a capa" else "Foto da mídia", "Fechar", onClose, onConfirm = onClose) {
+    ConfirmDialog(if (tipo == "capa") tr("Escolher a capa") else tr("Foto da mídia"), tr("Fechar"), onClose, onConfirm = onClose) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = { val f = File(File(ctx.cacheDir, "fotos").apply { mkdirs() }, "c-${System.currentTimeMillis()}.jpg"); shot.value = f; camera.launch(fileUri(ctx, f)) }) { Text("Fotografar") }
-            OutlinedButton(onClick = { gallery.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }) { Text("Galeria") }
+            OutlinedButton(onClick = { val f = File(File(ctx.cacheDir, "fotos").apply { mkdirs() }, "c-${System.currentTimeMillis()}.jpg"); shot.value = f; camera.launch(fileUri(ctx, f)) }) { Text(tr("Fotografar")) }
+            OutlinedButton(onClick = { gallery.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }) { Text(tr("Galeria")) }
         }
-        Hint("Fotos suas ficam só neste aparelho.")
+        Hint(tr("Fotos suas ficam só neste aparelho."))
         if (tipo == "capa") {
             HorizontalDivider()
-            OutlinedTextField(value = q, onValueChange = { q = it }, label = { Text("Buscar capas pelo nome") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-            if (sug.isEmpty()) Hint("Nenhuma capa parecida no catálogo" + (if (repoId.isEmpty()) " (console ${cn(item.console)} sem acervo associado)." else "."))
+            OutlinedTextField(value = q, onValueChange = { q = it }, label = { Text(tr("Buscar capas pelo nome")) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            if (sug.isEmpty()) Hint(tr("Nenhuma capa parecida no catálogo") + (if (repoId.isEmpty()) tr(" (console {0} sem acervo associado).", cn(item.console)) else "."))
             sug.chunked(3).forEach { row ->
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     row.forEach { (nome, url) ->
                         Column(Modifier.weight(1f).clickable {
                             onClose(); m.photo(item.chave, "capa")?.let { it.delete(); m.setPhoto(item.chave, "capa", null) }
-                            m.run { m.repo.setCapa(item.chave, "capa", url, nome); m.message = "Capa trocada para todos que usam a planilha." }
+                            m.run { m.repo.setCapa(item.chave, "capa", url, nome); m.message = tr("Capa trocada para todos que usam a planilha.") }
                         }) { Cover(url, "", Modifier.fillMaxWidth()); Text(nome, style = MaterialTheme.typography.labelSmall, maxLines = 2, overflow = TextOverflow.Ellipsis) }
                     }
                     repeat(3 - row.size) { Column(Modifier.weight(1f)) {} }
@@ -213,7 +213,7 @@ fun CoverDialog(m: AppModel, item: Item, tipo: String, onClose: () -> Unit) {
         AssistChip(onClick = {
             onClose(); m.photo(item.chave, tipo)?.let { it.delete(); m.setPhoto(item.chave, tipo, null) }
             if (m.repo.state.value.capas[item.chave]?.get(tipo) != null) m.run { m.repo.setCapa(item.chave, tipo, "", "") }
-        }, label = { Text(if (tipo == "capa") "Voltar à capa automática" else "Remover a foto") })
+        }, label = { Text(if (tipo == "capa") tr("Voltar à capa automática") else tr("Remover a foto")) })
     }
 }
 
@@ -229,8 +229,8 @@ fun ImageViewer(model: Any, title: String, onClose: () -> Unit) {
                     .pointerInput(Unit) { detectTapGestures(onDoubleTap = { if (scale > 1f) { scale = 1f; offset = androidx.compose.ui.geometry.Offset.Zero } else scale = 2.5f }) }
                     .pointerInput(Unit) { detectTransformGestures { _, pan, zoomBy, _ -> scale = (scale * zoomBy).coerceIn(1f, 6f); offset = if (scale == 1f) androidx.compose.ui.geometry.Offset.Zero else offset + pan } }
                     .graphicsLayer(scaleX = scale, scaleY = scale, translationX = offset.x, translationY = offset.y))
-            androidx.compose.material3.FilledTonalButton(onClick = onClose, modifier = Modifier.align(Alignment.TopStart).statusBarsPadding().padding(12.dp)) { Text("‹ Voltar") }
-            Text("Pinça para aproximar · dois toques para ampliar", color = androidx.compose.ui.graphics.Color.White.copy(alpha = .7f), style = MaterialTheme.typography.labelSmall,
+            androidx.compose.material3.FilledTonalButton(onClick = onClose, modifier = Modifier.align(Alignment.TopStart).statusBarsPadding().padding(12.dp)) { Text(tr("‹ Voltar")) }
+            Text(tr("Pinça para aproximar · dois toques para ampliar"), color = androidx.compose.ui.graphics.Color.White.copy(alpha = .7f), style = MaterialTheme.typography.labelSmall,
                 modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(12.dp))
         }
     }

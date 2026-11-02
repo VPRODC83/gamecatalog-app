@@ -39,7 +39,7 @@ class AppModel(val ctx: Context, val auth: GoogleAuth) {
                 runCatching { (runCatching { ctx.assets.open("catalog.json") }.getOrNull() ?: ctx.assets.open("catalog.json.gz")).use { Catalog.load(it) } }
             }
             catalog = r.getOrNull()
-            catalogError = r.exceptionOrNull()?.let { "Não consegui abrir o catálogo de jogos (${it.message}). A busca pela planilha continua funcionando." }
+            catalogError = r.exceptionOrNull()?.let { tr("Não consegui abrir o catálogo de jogos ({0}). A busca pela planilha continua funcionando.", it.message) }
         }
     }
 
@@ -52,7 +52,7 @@ class AppModel(val ctx: Context, val auth: GoogleAuth) {
     fun login(after: () -> Unit) = scope.launch {
         loginError = null; busy = true
         try { auth.token(interactive = true); loggedIn = true; after() }
-        catch (e: Exception) { loginError = "Não foi possível entrar. " + (e.message ?: "Tente de novo.") }
+        catch (e: Exception) { loginError = tr("Não foi possível entrar. ") + (e.message ?: tr("Tente de novo.")) }
         finally { busy = false }
     }
 
@@ -72,8 +72,8 @@ class AppModel(val ctx: Context, val auth: GoogleAuth) {
     /** Título de uma coluna da coleção para mostrar na tela (a coluna de região aparece como REGIÃO). */
     fun colName(i: Int): String {
         val c = repo.state.value.config?.colecao
-        if (c != null && i == c.regiao) return "REGIÃO"
-        return repo.state.value.head.getOrNull(i)?.ifBlank { null } ?: "Coluna ${i + 1}"
+        if (c != null && i == c.regiao) return tr("REGIÃO")
+        return repo.state.value.head.getOrNull(i)?.ifBlank { null } ?: tr("Coluna {0}", i + 1)
     }
 
     // ---- fotos suas (ficam só no aparelho) ----

@@ -107,7 +107,7 @@ fun fileUri(ctx: Context, f: File): Uri = FileProvider.getUriForFile(ctx, ctx.pa
 fun openLens(ctx: Context, uri: Uri): Boolean {
     val send = Intent(Intent.ACTION_SEND).setType("image/jpeg").putExtra(Intent.EXTRA_STREAM, uri).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
     return try { ctx.startActivity(Intent(send).setPackage("com.google.android.googlequicksearchbox")); true }
-    catch (_: ActivityNotFoundException) { runCatching { ctx.startActivity(Intent.createChooser(send, "Pesquisar a imagem com").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }.isSuccess }
+    catch (_: ActivityNotFoundException) { runCatching { ctx.startActivity(Intent.createChooser(send, tr("Pesquisar a imagem com")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }.isSuccess }
 }
 
 fun brl(v: Double?): String = if (v == null) "—" else java.text.NumberFormat.getCurrencyInstance(java.util.Locale("pt", "BR")).format(v)

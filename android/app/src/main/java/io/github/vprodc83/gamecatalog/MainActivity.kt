@@ -1,5 +1,6 @@
 package io.github.vprodc83.gamecatalog
 
+import io.github.vprodc83.gamecatalog.ui.tr
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -65,6 +66,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        io.github.vprodc83.gamecatalog.ui.I18n.init(this)
         val auth = GoogleAuth(this)
         auth.launcher = registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { auth.onResult(it.resultCode, it.data) }
         model = AppModel(applicationContext, auth)
@@ -72,10 +74,13 @@ class MainActivity : ComponentActivity() {
         val version = io.github.vprodc83.gamecatalog.ui.Updates.appVersion(this)
         setContent {
             MaterialTheme(colorScheme = if (isSystemInDarkTheme()) DarkColors else LightColors) {
+                androidx.compose.runtime.CompositionLocalProvider(androidx.compose.ui.platform.LocalLayoutDirection provides
+                    if (io.github.vprodc83.gamecatalog.ui.I18n.rtl) androidx.compose.ui.unit.LayoutDirection.Rtl else androidx.compose.ui.unit.LayoutDirection.Ltr) {
                 Box(Modifier.fillMaxSize()) {
                     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) { App(model) }
                     // abertura uma vez por abertura do app (girar a tela não repete)
                     if (!splashDone.value) io.github.vprodc83.gamecatalog.ui.SplashScreen(version) { splashDone.value = true }
+                }
                 }
             }
         }
@@ -133,14 +138,14 @@ private fun App(m: AppModel) {
             BackHandler(enabled = open != null || tab != Tab.IDENTIFICAR) { if (open != null) open = null else tab = Tab.IDENTIFICAR }
             Scaffold(
                 topBar = {
-                    TopAppBar(title = { Text(if (open != null) open!!.lista.titulo else tab.titulo + if (tab == Tab.COLECAO) " (${st.of(Lista.COLECAO).size})" else "", maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                        actions = { IconButton(onClick = { m.refresh() }, enabled = !m.busy) { Icon(Icons.Default.Refresh, "Atualizar") } })
+                    TopAppBar(title = { Text(if (open != null) tr(open!!.lista.titulo) else tr(tab.titulo) + if (tab == Tab.COLECAO) " (${st.of(Lista.COLECAO).size})" else "", maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                        actions = { IconButton(onClick = { m.refresh() }, enabled = !m.busy) { Icon(Icons.Default.Refresh, tr("Atualizar")) } })
                 },
                 bottomBar = {
                     NavigationBar {
                         listOf(Tab.IDENTIFICAR to Icons.Default.CameraAlt, Tab.COLECAO to Icons.Default.VideogameAsset, Tab.PROCURADOS to Icons.Default.Favorite,
                             Tab.COMPRAS to Icons.Default.ShoppingCart, Tab.AJUSTES to Icons.Default.Settings).forEach { (t, ic) ->
-                            NavigationBarItem(selected = tab == t && open == null, onClick = { tab = t; open = null }, icon = { Icon(ic, null) }, label = { Text(t.titulo, maxLines = 1) })
+                            NavigationBarItem(selected = tab == t && open == null, onClick = { tab = t; open = null }, icon = { Icon(ic, null) }, label = { Text(tr(t.titulo), maxLines = 1) })
                         }
                     }
                 },

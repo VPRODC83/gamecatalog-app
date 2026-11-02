@@ -96,7 +96,7 @@ fun IdentifyScreen(m: AppModel, onOpen: (Item) -> Unit) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     var photo by remember { mutableStateOf<File?>(null) }
-    var status by remember { mutableStateOf("Fotografe a etiqueta ou a caixa do jogo. Vale foto com vários cartuchos.") }
+    var status by remember { mutableStateOf(tr("Fotografe a etiqueta ou a caixa do jogo. Vale foto com vários cartuchos.")) }
     val cands = remember { mutableStateListOf<Cand>() }
     var reading by remember { mutableStateOf(false) }
     var lensPending by remember { mutableStateOf(false) }
@@ -105,23 +105,23 @@ fun IdentifyScreen(m: AppModel, onOpen: (Item) -> Unit) {
     var search by remember { mutableStateOf("") }
 
     fun analyze(f: File) {
-        photo = f; cands.clear(); reading = true; status = "Lendo a etiqueta…"
+        photo = f; cands.clear(); reading = true; status = tr("Lendo a etiqueta…")
         scope.launch {
             try {
                 val (blocks, text) = readText(ctx, fileUri(ctx, f))
                 var cat = m.catalog
                 var waited = 0
                 while (cat == null && m.catalogError == null && waited < 100) { kotlinx.coroutines.delay(100); waited++; cat = m.catalog }
-                if (cat == null) { status = m.catalogError ?: "O catálogo de jogos ainda está carregando. Tente de novo em instantes."; return@launch }
+                if (cat == null) { status = m.catalogError ?: tr("O catálogo de jogos ainda está carregando. Tente de novo em instantes."); return@launch }
                 val repos = m.repo.state.value.consoles.map { m.repo.platformOf(it) }.filter { it.isNotEmpty() }.distinct()
                 val found = withContext(Dispatchers.Default) { Identify.find(cat, blocks, text, repos) }
                 found.forEach { cands.add(Cand(it.match.tituloLimpo, consoleFor(m, it.match.repo), it.match.plataforma, it.match.repo, it.alternativas, "etiqueta")) }
                 status = when {
-                    found.isNotEmpty() -> "Encontrei ${found.size} jogo(s) pela etiqueta. Confira abaixo."
-                    text.isBlank() -> "Não consegui ler texto na foto. Use o Google Lens ou a busca por nome."
-                    else -> "Li o texto, mas não reconheci o jogo. Use o Google Lens ou a busca por nome."
+                    found.isNotEmpty() -> tr("Encontrei {0} jogo(s) pela etiqueta. Confira abaixo.", found.size)
+                    text.isBlank() -> tr("Não consegui ler texto na foto. Use o Google Lens ou a busca por nome.")
+                    else -> tr("Li o texto, mas não reconheci o jogo. Use o Google Lens ou a busca por nome.")
                 }
-            } catch (e: Exception) { status = "Não consegui ler a foto: ${e.message}" } finally { reading = false }
+            } catch (e: Exception) { status = tr("Não consegui ler a foto: {0}", e.message) } finally { reading = false }
         }
     }
 
@@ -159,16 +159,16 @@ fun IdentifyScreen(m: AppModel, onOpen: (Item) -> Unit) {
                         Button(onClick = {
                             val f = File(File(ctx.cacheDir, "fotos").apply { mkdirs() }, "foto-${System.currentTimeMillis()}.jpg"); shotFile.value = f
                             camera.launch(fileUri(ctx, f))
-                        }, modifier = Modifier.weight(1f)) { Icon(Icons.Default.PhotoCamera, null); Text("  Fotografar") }
-                        OutlinedButton(onClick = { gallery.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }, modifier = Modifier.weight(1f)) { Icon(Icons.Default.Image, null); Text("  Galeria") }
+                        }, modifier = Modifier.weight(1f)) { Icon(Icons.Default.PhotoCamera, null); Text(tr("  Fotografar")) }
+                        OutlinedButton(onClick = { gallery.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }, modifier = Modifier.weight(1f)) { Icon(Icons.Default.Image, null); Text(tr("  Galeria")) }
                     }
-                    photo?.let { AsyncImage(model = it, contentDescription = "Foto", modifier = Modifier.fillMaxWidth().heightIn(max = 260.dp)) }
+                    photo?.let { AsyncImage(model = it, contentDescription = tr("Foto"), modifier = Modifier.fillMaxWidth().heightIn(max = 260.dp)) }
                     Row { if (reading) CircularProgressIndicator(Modifier.width(20.dp).padding(end = 8.dp)); Hint(status) }
                     photo?.let { f ->
                         OutlinedButton(onClick = { clipStamp = readClip(ctx)?.second ?: -1L; clip = null; lensPending = openLens(ctx, fileUri(ctx, f)) }, modifier = Modifier.fillMaxWidth()) {
-                            Text("Perguntar ao Google Lens")
+                            Text(tr("Perguntar ao Google Lens"))
                         }
-                        Hint("No Lens, segure o dedo no nome do jogo (no texto da foto ou num resultado), toque em Copiar e volte para cá: o app oferece o nome copiado. Se não oferecer, use o botão Colar em Buscar pelo nome.")
+                        Hint(tr("No Lens, segure o dedo no nome do jogo (no texto da foto ou num resultado), toque em Copiar e volte para cá: o app oferece o nome copiado. Se não oferecer, use o botão Colar em Buscar pelo nome."))
                     }
                 }
             }
@@ -177,10 +177,10 @@ fun IdentifyScreen(m: AppModel, onOpen: (Item) -> Unit) {
             item {
                 Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
                     Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Você copiou “${cleanClip(t)}”. Procurar este jogo?", fontWeight = FontWeight.SemiBold)
+                        Text(tr("Você copiou “{0}”. Procurar este jogo?", cleanClip(t)), fontWeight = FontWeight.SemiBold)
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Button(onClick = { search = cleanClip(t); clip = null; lensPending = false }) { Text("Procurar") }
-                            TextButton(onClick = { clip = null; lensPending = false }) { Text("Agora não") }
+                            Button(onClick = { search = cleanClip(t); clip = null; lensPending = false }) { Text(tr("Procurar")) }
+                            TextButton(onClick = { clip = null; lensPending = false }) { Text(tr("Agora não")) }
                         }
                     }
                 }
@@ -190,7 +190,7 @@ fun IdentifyScreen(m: AppModel, onOpen: (Item) -> Unit) {
         item {
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Buscar pelo nome", fontWeight = FontWeight.SemiBold)
+                    Text(tr("Buscar pelo nome"), fontWeight = FontWeight.SemiBold)
                     NameSearch(m, search, onQuery = { search = it }) { c -> cands.add(0, c) }
                 }
             }
@@ -205,10 +205,10 @@ fun NameSearch(m: AppModel, query: String, onQuery: (String) -> Unit, onPick: (C
     val consoles = m.repo.state.value.consoles
     var console by remember { mutableStateOf("") }
     val ctx = LocalContext.current
-    OutlinedTextField(value = query, onValueChange = onQuery, label = { Text("Nome do jogo ou parte dele") }, singleLine = true, leadingIcon = { Icon(Icons.Default.Search, null) }, modifier = Modifier.fillMaxWidth(),
-        trailingIcon = { TextButton(onClick = { readClip(ctx)?.first?.let { onQuery(cleanClip(it)) } }) { Text("Colar") } })
-    if (m.catalog == null) Hint(m.catalogError ?: "Carregando o catálogo de jogos…")
-    Picker("Console", console, listOf("" to "Todos os consoles") + consoles.map { it to cn(it) }) { console = it }
+    OutlinedTextField(value = query, onValueChange = onQuery, label = { Text(tr("Nome do jogo ou parte dele")) }, singleLine = true, leadingIcon = { Icon(Icons.Default.Search, null) }, modifier = Modifier.fillMaxWidth(),
+        trailingIcon = { TextButton(onClick = { readClip(ctx)?.first?.let { onQuery(cleanClip(it)) } }) { Text(tr("Colar")) } })
+    if (m.catalog == null) Hint(m.catalogError ?: tr("Carregando o catálogo de jogos…"))
+    Picker(tr("Console"), console, listOf("" to tr("Todos os consoles")) + consoles.map { it to cn(it) }) { console = it }
     val q = query.trim()
     if (q.length >= 2) {
         val mine = m.repo.state.value.items.filter { (console.isEmpty() || m.repo.platformOf(it.console) == m.repo.platformOf(console)) && T.score(q, it.nome) >= 0.6 }
@@ -216,11 +216,11 @@ fun NameSearch(m: AppModel, query: String, onQuery: (String) -> Unit, onPick: (C
         val repos = if (console.isEmpty()) consoles.map { m.repo.platformOf(it) }.filter { it.isNotEmpty() }.distinct() else listOfNotNull(m.repo.platformOf(console).ifEmpty { null })
         val cat = m.catalog?.search(q, repos, limit = 10, minScore = 0.6) ?: emptyList()
         mine.forEach { i -> TextButton(onClick = { onPick(Cand(i.nome, i.console, i.console, m.repo.platformOf(i.console), origem = "planilha")) }, modifier = Modifier.fillMaxWidth()) {
-            Column(Modifier.fillMaxWidth()) { Text(i.nome); Hint("${cn(i.console)} · ${i.lista.titulo} · linha ${i.linha}") } } }
+            Column(Modifier.fillMaxWidth()) { Text(i.nome); Hint(tr("{0} · {1} · linha {2}", cn(i.console), tr(i.lista.titulo), i.linha)) } } }
         cat.forEach { c -> TextButton(onClick = { onPick(Cand(c.tituloLimpo, console.ifEmpty { consoleFor(m, c.repo) }, c.plataforma, c.repo, origem = "busca")) }, modifier = Modifier.fillMaxWidth()) {
-            Column(Modifier.fillMaxWidth()) { Text(c.tituloLimpo); Hint("Catálogo · ${c.plataforma}") } } }
-        if (mine.isEmpty() && cat.isEmpty()) Hint("Nada parecido. Tente outro nome ou outro console.")
-        OutlinedButton(onClick = { onPick(Cand(q, console, console, m.repo.platformOf(console), origem = "digitado")) }) { Text("Usar o nome digitado") }
+            Column(Modifier.fillMaxWidth()) { Text(c.tituloLimpo); Hint(tr("Catálogo · {0}", c.plataforma)) } } }
+        if (mine.isEmpty() && cat.isEmpty()) Hint(tr("Nada parecido. Tente outro nome ou outro console."))
+        OutlinedButton(onClick = { onPick(Cand(q, console, console, m.repo.platformOf(console), origem = "digitado")) }) { Text(tr("Usar o nome digitado")) }
     }
 }
 
@@ -238,27 +238,27 @@ fun CandCard(m: AppModel, c: Cand, onOpen: (Item) -> Unit, onReplace: (Cand) -> 
                 Cover(cover, cn(c.console).ifEmpty { c.plataforma }, Modifier.width(84.dp))
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(c.titulo, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    Hint(listOf(cn(c.console), c.plataforma).filter { it.isNotBlank() }.distinct().joinToString(" · ").ifEmpty { "Console não identificado" })
+                    Hint(listOf(cn(c.console), c.plataforma).filter { it.isNotBlank() }.distinct().joinToString(" · ").ifEmpty { tr("Console não identificado") })
                     when {
-                        have.isNotEmpty() -> Pill("Você já tem", Ok)
-                        buying.isNotEmpty() -> Pill("Já está nas compras", Warn)
-                        want.isNotEmpty() -> Pill("Está nos procurados", Info)
-                        else -> Pill("Você não tem", MaterialTheme.colorScheme.primary)
+                        have.isNotEmpty() -> Pill(tr("Você já tem"), Ok)
+                        buying.isNotEmpty() -> Pill(tr("Já está nas compras"), Warn)
+                        want.isNotEmpty() -> Pill(tr("Está nos procurados"), Info)
+                        else -> Pill(tr("Você não tem"), MaterialTheme.colorScheme.primary)
                     }
-                    Hint(when (c.origem) { "etiqueta" -> "Reconhecido pela etiqueta"; "planilha" -> "Escolhido da sua planilha"; "busca" -> "Escolhido no catálogo"; else -> "Nome digitado" })
+                    Hint(when (c.origem) { "etiqueta" -> tr("Reconhecido pela etiqueta"); "planilha" -> tr("Escolhido da sua planilha"); "busca" -> tr("Escolhido no catálogo"); else -> tr("Nome digitado") })
                 }
             }
-            found.take(3).forEach { f -> TextButton(onClick = { onOpen(f.item) }) { Text("${f.item.lista.titulo}: ${cn(f.item.console)} · ${f.item.nome} (linha ${f.item.linha})") } }
+            found.take(3).forEach { f -> TextButton(onClick = { onOpen(f.item) }) { Text(tr("{0}: {1} · {2} (linha {3})", tr(f.item.lista.titulo), cn(f.item.console), f.item.nome, f.item.linha)) } }
             Chips {
                 if (have.isEmpty() && buying.isEmpty()) {
-                    AssistChip(onClick = { dialog = "comprei" }, label = { Text("Comprei") })
-                    AssistChip(onClick = { dialog = "colecao" }, label = { Text("Já tenho: pôr na coleção") })
-                    if (want.isEmpty() && m.repo.state.value.config?.procurados?.isNotEmpty() == true) AssistChip(onClick = { dialog = "quero" }, label = { Text("Quero (procurados)") })
+                    AssistChip(onClick = { dialog = "comprei" }, label = { Text(tr("Comprei")) })
+                    AssistChip(onClick = { dialog = "colecao" }, label = { Text(tr("Já tenho: pôr na coleção")) })
+                    if (want.isEmpty() && m.repo.state.value.config?.procurados?.isNotEmpty() == true) AssistChip(onClick = { dialog = "quero" }, label = { Text(tr("Quero (procurados)")) })
                 }
-                if (have.isNotEmpty()) AssistChip(onClick = { dialog = "comprei" }, label = { Text("Comprei outra cópia") })
+                if (have.isNotEmpty()) AssistChip(onClick = { dialog = "comprei" }, label = { Text(tr("Comprei outra cópia")) })
             }
             if (c.alternativas.isNotEmpty()) {
-                SectionTitle("Pode ser também")
+                SectionTitle(tr("Pode ser também"))
                 Chips { c.alternativas.forEach { a -> AssistChip(onClick = { onReplace(c.copy(titulo = a.tituloLimpo, repo = a.repo, plataforma = a.plataforma, console = consoleFor(m, a.repo), alternativas = c.alternativas - a + Catalog.Match(c.titulo, c.titulo, c.repo, c.plataforma, 0.0))) }, label = { Text(a.tituloLimpo) }) } }
             }
             PriceBox(m, c.titulo, c.plataforma, c.repo, key = null)

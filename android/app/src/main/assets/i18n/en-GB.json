@@ -1,0 +1,22 @@
+{
+" (console {0} sem acervo associado).": " (console {0} has no linked catalogue).",
+" · {0} sem capa no catálogo": " · {0} with no cover in the catalogue",
+"Aplicativo (programa e catálogo de jogos)": "App (program and game catalogue)",
+"Carregando o catálogo de jogos…": "Loading the game catalogue…",
+"Catálogo · {0}": "Catalogue · {0}",
+"Compras": "Purchases",
+"Consultar valor mundial": "Check worldwide price",
+"Cópia da planilha no celular": "Spreadsheet copy on the mobile",
+"Entre com a conta Google do celular. O app lê e grava a planilha da coleção que você escolher; nada é enviado para outra pessoa.": "Sign in with the mobile's Google account. The app reads and writes the collection spreadsheet you choose; nothing is sent to anyone else.",
+"Escolhido no catálogo": "Chosen from the catalogue",
+"Espaço ocupado no celular": "Space used on the mobile",
+"Identificação feita no próprio aparelho (leitura da etiqueta) e pelo Google Lens. Capas: libretro-thumbnails. Valores: PriceCharting.": "Identification done on the device itself (label reading) and with Google Lens. Covers: libretro-thumbnails. Prices: PriceCharting.",
+"Lista de compras": "Shopping list",
+"Nenhuma capa parecida no catálogo": "No similar cover in the catalogue",
+"Não consegui abrir o catálogo de jogos ({0}). A busca pela planilha continua funcionando.": "I couldn't open the game catalogue ({0}). Searching the spreadsheet still works.",
+"O Google Play Services do celular não oferece este login. Atualize o Google Play Services.": "This mobile's Google Play Services doesn't offer this sign-in. Update Google Play Services.",
+"O catálogo de jogos ainda está carregando.": "The game catalogue is still loading.",
+"O catálogo de jogos ainda está carregando. Tente de novo em instantes.": "The game catalogue is still loading. Try again in a moment.",
+"Observação": "Note",
+"ou console fixo da aba (ex.: SFC)": "or the tab's fixed console (e.g. SFC)"
+}
