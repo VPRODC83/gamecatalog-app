@@ -71,6 +71,7 @@ fun ListScreen(m: AppModel, lista: Lista, onOpen: (Item) -> Unit) {
             Column(Modifier.padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(value = q, onValueChange = { q = it }, label = { Text(tr("Procurar em {0}", tr(lista.titulo).lowercase())) }, singleLine = true, leadingIcon = { Icon(Icons.Default.Search, null) }, modifier = Modifier.fillMaxWidth())
                 if (consoles.size > 1) Picker(tr("Console"), console, listOf("" to tr("Todos ({0})", all.size)) + consoles.map { c -> c to "${cn(c)} (${all.count { it.console.equals(c, true) }})" }) { console = it }
+                if (lista == Lista.COLECAO && st.config != null) CollectionTools(m)
                 if (lista == Lista.COLECAO && all.isNotEmpty()) CoverUpdateCard(m)
                 Hint(when {
                     st.offline -> tr("Sem internet: mostrando a última cópia salva no aparelho. {0} jogo(s).", shown.size)

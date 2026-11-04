@@ -116,6 +116,15 @@ class CoreTest {
         io.github.vprodc83.gamecatalog.ui.I18n.useTable("pt-BR", emptyMap())
     }
 
+    @Test fun snapToTableOptions() {
+        val reg = listOf("US", "BR", "JP", "EU", "ASIA"); val con = listOf("FAMICOM", "SFC", "SNES", "MD", "ODYSSEY", "ODYSSEY ")
+        assertEquals("US", io.github.vprodc83.gamecatalog.data.Repo.snapTo("USA", reg))
+        assertEquals("JP", io.github.vprodc83.gamecatalog.data.Repo.snapTo("jap", reg))
+        assertEquals("FAMICOM", io.github.vprodc83.gamecatalog.data.Repo.snapTo("FC", con))
+        assertEquals("ODYSSEY", io.github.vprodc83.gamecatalog.data.Repo.snapTo("ODYSSEY", con))
+        assertEquals("NEOGEO", io.github.vprodc83.gamecatalog.data.Repo.snapTo("NEOGEO", con))
+    }
+
     @Test fun misc() {
         assertEquals("1AbCdEfGhIjKlMnOpQrStUvWxYz0123", Sheets.idFromLink("https://docs.google.com/spreadsheets/d/1AbCdEfGhIjKlMnOpQrStUvWxYz0123/edit?usp=sharing"))
         assertEquals("AA", Sheets.col(26))

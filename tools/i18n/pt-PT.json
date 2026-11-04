@@ -262,5 +262,22 @@
 "A Google recusou o acesso a esta folha de cálculo para a conta {0}. Tem de estar partilhada com exatamente esse e-mail como Editor (no Google Sheets: Partilhar). Se o telemóvel usa outra conta Google, entre com a conta que recebeu a partilha.",
 "(desconhecida)",
 "Ligado como {0}. A folha de cálculo tem de estar partilhada com este e-mail como Editor.",
-"Entrar com outra conta Google"
+"Entrar com outra conta Google",
+"Atenção: {0} já existe na coleção (linha {1}).",
+"Desmarcar todos",
+"Faltam em {0}?",
+"Incluir em {0}?",
+"Incluir {0} jogo(s)",
+"Jogos que faltam em {0}",
+"Marcar todos",
+"Nada em falta: todos os procurados marcados COMPRADO e as compras recebidas já estão em {0}.",
+"Novo jogo",
+"Novo jogo na coleção",
+"Os marcados “ainda não recebido” estão pendentes nas compras.",
+"Procurados marcados COMPRADO e compras recebidas que não estão em {0}. Desmarque o que não quiser incluir. Nenhuma linha existente é alterada.",
+"ainda não recebido",
+"a consola {0} não está na lista da tabela; ajuste depois em Editar dados",
+"de {0}",
+"{0} (fora da lista)",
+"{0} jogo(s) incluído(s) em {1}."
 ]

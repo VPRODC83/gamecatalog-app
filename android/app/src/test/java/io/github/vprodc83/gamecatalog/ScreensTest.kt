@@ -51,10 +51,11 @@ class ScreensTest {
         File(ctx.filesDir, "ajustes.json").writeText(JSONObject().put("sheetId", "teste").toString())
         val games = listOf(listOf("CONSOLE", "NOME", "EU/USA/BR/JAP/ASIA", "CIB"), listOf("SNES", "Super Mario World", "USA", "SIM"),
             listOf("SFC", "Rockman X", "JAP", ""), listOf("MD", "Sonic the Hedgehog", "BR", "SIM"))
-        val sfc = listOf(listOf("NOME", "STATUS"), listOf("Final Fantasy VI", ""))
+        val sfc = listOf(listOf("NOME", "STATUS"), listOf("Final Fantasy VI", ""), listOf("Seiken Densetsu 3", "COMPRADO"), listOf("Rockman X", "COMPRADO"))
         val buy = listOf(listOf("DATA", "CONSOLE", "NOME", "REGIAO", "LISTA", "STATUS", "RECEBIDO_EM", "OBS"), listOf("01/11/2026", "N64", "Zelda Ocarina of Time", "USA", "", "COMPRADO", "", "OLX"))
         val vals = JSONArray(listOf(games, sfc, buy).map { t -> JSONArray(t.map { JSONArray(it) }) })
-        File(ctx.filesDir, "planilha-cache.json").writeText(JSONObject().put("sheetId", "teste").put("title", "JOGOS").put("config", cfg.toString()).put("em", 0L).put("vals", vals).toString())
+        File(ctx.filesDir, "planilha-cache.json").writeText(JSONObject().put("sheetId", "teste").put("title", "JOGOS").put("config", cfg.toString()).put("em", 0L).put("vals", vals)
+            .put("dropdowns", JSONObject().put("GAMES", JSONObject().put("0", JSONArray(listOf("FAMICOM", "MD", "SFC", "SNES"))).put("2", JSONArray(listOf("US", "BR", "JP"))))).toString())
         I18n.init(ctx)
         return AppModel(ctx, GoogleAuth(ctx))
     }
@@ -85,5 +86,13 @@ class ScreensTest {
     @Test fun ajustes() { val m = seed(); shot("4-ajustes") { SettingsScreen(m, {}, {}, {}) } }
     @Test fun abertura() { seed(); rule.mainClock.autoAdvance = false; shot("5-abertura") { SplashScreen("0.6.0") {} } }
     @Test fun hebraico() { val m = seed(); I18n.set("he-IL"); shot("6-colecao-hebraico", rtl = true) { ListScreen(m, Lista.COLECAO) {} }; I18n.set("pt-BR") }
+    @Test fun varredura() {
+        val m = seed()
+        val miss = io.github.vprodc83.gamecatalog.ui.findMissing(m)
+        // Seiken Densetsu 3 (COMPRADO em SFC) falta em GAMES; Rockman X já está lá; o recebido "Zelda" ainda não foi recebido (pendente em BUYING, não entra)
+        org.junit.Assert.assertEquals(listOf("Seiken Densetsu 3"), miss.map { it.origem.nome })
+        org.junit.Assert.assertEquals("SFC", miss[0].row[0])
+        org.junit.Assert.assertEquals("JP", m.repo.snap("GAMES", 2, "JAP"))
+    }
     @Test fun japones() { val m = seed(); I18n.set("ja-JP"); shot("7-ajustes-japones") { SettingsScreen(m, {}, {}, {}) }; I18n.set("pt-BR") }
 }

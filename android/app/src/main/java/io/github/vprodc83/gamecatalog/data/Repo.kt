@@ -28,7 +28,11 @@ class Repo(private val dir: File, val sheets: Sheets) {
         val head: List<String> = emptyList(), val items: List<Item> = emptyList(),
         val capas: Map<String, Map<String, Capa>> = emptyMap(), val capasRows: Map<String, Int> = emptyMap(),
         val precos: Map<String, String> = emptyMap(), val precosRows: Map<String, Int> = emptyMap(),
-        val atualizadoEm: Long = 0, val offline: Boolean = false
+        val atualizadoEm: Long = 0, val offline: Boolean = false,
+        /** Opções das listas suspensas das tabelas da planilha: aba → coluna (0 = A) → opções. */
+        val dropdowns: Map<String, Map<Int, List<String>>> = emptyMap(),
+        /** Procurados já marcados COMPRADO e compras já RECEBIDAS (não aparecem nas listas, mas servem à varredura). */
+        val wantedBought: List<Item> = emptyList(), val received: List<Item> = emptyList()
     ) {
         val consoles: List<String> get() = items.filter { it.lista == Lista.COLECAO }.map { it.console.uppercase() }.filter { it.isNotBlank() }.distinct().sorted()
         fun of(l: Lista) = items.filter { it.lista == l }
@@ -62,7 +66,9 @@ class Repo(private val dir: File, val sheets: Sheets) {
         if (Config.CAPAS in meta.tabs) ranges.add("${q(Config.CAPAS)}!A1:F5000")
         if (Config.PRECOS in meta.tabs) ranges.add("${q(Config.PRECOS)}!A1:C5000")
         val vals = sheets.batchGet(id, ranges)
-        val st = build(id, meta.title, cfg, vals, Config.CAPAS in meta.tabs, Config.PRECOS in meta.tabs)
+        val dd = runCatching { sheets.tables(id).filter { it.dropdowns.isNotEmpty() }.groupBy { it.tab }.mapValues { (_, ts) -> ts.flatMap { it.dropdowns.entries }.associate { it.key to it.value } } }
+            .getOrElse { _state.value.dropdowns }
+        val st = build(id, meta.title, cfg, vals, Config.CAPAS in meta.tabs, Config.PRECOS in meta.tabs).copy(dropdowns = dd)
         _state.value = st
         runCatching { saveCache(st, vals, meta.tabs) }
         return st
@@ -80,20 +86,23 @@ class Repo(private val dir: File, val sheets: Sheets) {
             val flags = head.indices.filter { it != c.console && it != c.nome && it != c.regiao }.map { k -> (head[k].ifBlank { col(k) }) to raw[k] }
             items.add(Item(Lista.COLECAO, c.aba, i + 2, raw, raw[c.console], nome, if (c.regiao >= 0) raw[c.regiao] else "", flags = flags))
         }
+        val bought = ArrayList<Item>(); val received = ArrayList<Item>()
         cfg.procurados.forEachIndexed { wi, w ->
             vals.getOrElse(1 + wi) { emptyList() }.drop(1).forEachIndexed { i, r ->
                 val raw = pad(r, maxOf(r.size, 26)); val nome = raw.getOrElse(w.nome) { "" }; if (nome.isBlank()) return@forEachIndexed
                 val status = if (w.status >= 0) raw[w.status] else ""
-                if (Text.norm(status) == "COMPRADO") return@forEachIndexed   // já aparece em Compras
-                items.add(Item(Lista.PROCURADO, w.aba, i + 2, raw, if (w.consoleCol >= 0) raw[w.consoleCol] else w.console, nome,
-                    status = status, info = if (w.info >= 0) raw[w.info] else "", wi = wi))
+                val it = Item(Lista.PROCURADO, w.aba, i + 2, raw, if (w.consoleCol >= 0) raw[w.consoleCol] else w.console, nome,
+                    status = status, info = if (w.info >= 0) raw[w.info] else "", wi = wi)
+                if (Text.norm(status) == "COMPRADO") { bought.add(it); return@forEachIndexed }   // já aparece em Compras
+                items.add(it)
             }
         }
         val bi = 1 + cfg.procurados.size
         vals.getOrElse(bi) { emptyList() }.drop(1).forEachIndexed { i, r ->
             val raw = pad(r, 8); if (raw[2].isBlank()) return@forEachIndexed
-            if (Text.norm(raw[5]) == "RECEBIDO") return@forEachIndexed
-            items.add(Item(Lista.COMPRADO, cfg.compras, i + 2, raw, raw[1], raw[2], raw[3], status = raw[5], info = raw[4], data = raw[0], obs = raw[7]))
+            val it = Item(Lista.COMPRADO, cfg.compras, i + 2, raw, raw[1], raw[2], raw[3], status = raw[5], info = raw[4], data = raw[0], obs = raw[7])
+            if (Text.norm(raw[5]) == "RECEBIDO") { received.add(it); return@forEachIndexed }
+            items.add(it)
         }
         var k = bi + 1
         val capas = HashMap<String, MutableMap<String, Capa>>(); val capasRows = HashMap<String, Int>()
@@ -107,13 +116,14 @@ class Repo(private val dir: File, val sheets: Sheets) {
             val p = pad(r, 3); if (p[0].isBlank()) return@forEachIndexed
             precosRows[p[0]] = i + 2; if (p[2].isNotBlank()) precos[p[0]] = p[2]
         }
-        return State(id, title, cfg, head, items, capas, capasRows, precos, precosRows, System.currentTimeMillis())
+        return State(id, title, cfg, head, items, capas, capasRows, precos, precosRows, System.currentTimeMillis(), wantedBought = bought, received = received)
     }
 
     private fun saveCache(st: State, vals: List<List<List<String>>>, tabs: List<String>) {
         val o = JSONObject().put("sheetId", st.sheetId).put("title", st.title).put("config", st.config?.toString()).put("em", st.atualizadoEm)
             .put("hasCapas", Config.CAPAS in tabs).put("hasPrecos", Config.PRECOS in tabs)
             .put("vals", JSONArray(vals.map { t -> JSONArray(t.map { JSONArray(it) }) }))
+            .put("dropdowns", JSONObject().also { o2 -> st.dropdowns.forEach { (tab, cols) -> o2.put(tab, JSONObject().also { c2 -> cols.forEach { (k, v) -> c2.put(k.toString(), JSONArray(v)) } }) } })
         val tmp = File(dir, "planilha-cache.json.tmp"); tmp.writeText(o.toString()); tmp.renameTo(cacheFile)
     }
 
@@ -124,7 +134,9 @@ class Repo(private val dir: File, val sheets: Sheets) {
         val cfg = Config.parse(o.optString("config")) ?: return
         val va = o.getJSONArray("vals")
         val vals = (0 until va.length()).map { t -> va.getJSONArray(t).let { rs -> (0 until rs.length()).map { r -> rs.getJSONArray(r).let { cs -> (0 until cs.length()).map { cs.optString(it) } } } } }
-        _state.value = build(o.getString("sheetId"), o.optString("title"), cfg, vals, o.optBoolean("hasCapas"), o.optBoolean("hasPrecos")).copy(atualizadoEm = o.optLong("em"), offline = true)
+        val ddo = o.optJSONObject("dropdowns") ?: JSONObject()
+        val dd = ddo.keys().asSequence().associateWith { tab -> ddo.getJSONObject(tab).let { c2 -> c2.keys().asSequence().associate { k -> k.toInt() to c2.getJSONArray(k).let { a -> (0 until a.length()).map { a.getString(it) } } } } }
+        _state.value = build(o.getString("sheetId"), o.optString("title"), cfg, vals, o.optBoolean("hasCapas"), o.optBoolean("hasPrecos")).copy(atualizadoEm = o.optLong("em"), offline = true, dropdowns = dd)
     }
 
     // ---------------- configuração ----------------
@@ -211,6 +223,19 @@ class Repo(private val dir: File, val sheets: Sheets) {
         sheets.append(sheetId, "${q(tab)}!A1:${col(width - 1)}1", rows)
     }
 
+    /** Opções da lista suspensa de uma coluna (null se a coluna aceita texto livre). */
+    fun options(tab: String, col: Int): List<String>? = _state.value.dropdowns[tab]?.get(col)?.takeIf { it.isNotEmpty() }
+
+    /** Ajusta um valor às opções da lista suspensa (USA → US, JAP → JP, FC → FAMICOM…); sem lista, devolve igual. */
+    fun snap(tab: String, col: Int, value: String): String = options(tab, col)?.let { snapTo(value, it) } ?: value
+
+    /** Vários jogos novos de uma vez no fim da coleção (dentro da tabela, se houver). */
+    suspend fun addManyToCollection(rows: List<List<String>>) {
+        if (rows.isEmpty()) return
+        val c = cfg.colecao
+        appendRows(c.aba, c.ultima + 1, rows.map { pad(it, c.ultima + 1) })
+    }
+
     /** Linha nova no fim da coleção; [valores] tem uma posição por coluna da aba. */
     suspend fun addToCollection(valores: List<String>) {
         val c = cfg.colecao
@@ -219,7 +244,7 @@ class Repo(private val dir: File, val sheets: Sheets) {
 
     fun emptyCollectionRow(console: String, nome: String, regiao: String): MutableList<String> {
         val c = cfg.colecao
-        return MutableList(c.ultima + 1) { "" }.also { it[c.console] = console; it[c.nome] = nome; if (c.regiao >= 0) it[c.regiao] = regiao }
+        return MutableList(c.ultima + 1) { "" }.also { it[c.console] = snap(c.aba, c.console, console); it[c.nome] = nome; if (c.regiao >= 0) it[c.regiao] = snap(c.aba, c.regiao, regiao) }
     }
 
     /** Inclui na primeira aba de procurados (ou na indicada). */
@@ -293,6 +318,20 @@ class Repo(private val dir: File, val sheets: Sheets) {
     }
 
     companion object {
+        private val aliases = mapOf("USA" to "US", "EUA" to "US", "NTSC" to "US", "JAP" to "JP", "JPN" to "JP", "JAPAO" to "JP", "JAPAN" to "JP", "NTSCJ" to "JP",
+            "BRA" to "BR", "BRASIL" to "BR", "BRAZIL" to "BR", "EUR" to "EU", "EUROPA" to "EU", "EUROPE" to "EU", "PAL" to "EU", "CHN" to "CN", "CHINA" to "CN",
+            "ESP" to "ES", "ESPANHA" to "ES", "MEX" to "MX", "MEXICO" to "MX",
+            "FC" to "FAMICOM", "GENESIS" to "MD", "MEGADRIVE" to "MD", "MASTERSYSTEM" to "MS", "SUPERFAMICOM" to "SFC", "SUPERNINTENDO" to "SNES",
+            "PS" to "PS1", "PSX" to "PS1", "GB" to "GAMEBOY", "GBC" to "GAMEBOY COLOR", "GBA" to "GAMEBOY ADVANCED", "SWITCH" to "NSW", "SWITCH2" to "NSW2")
+        /** Valor equivalente dentro das opções; se nada bater, devolve o próprio valor (o usuário escolhe na tela). */
+        fun snapTo(value: String, opts: List<String>): String {
+            val v = value.trim(); if (v.isEmpty()) return value
+            val n = Text.norm(v)
+            opts.firstOrNull { it.trim() == v }?.let { return it }
+            opts.firstOrNull { Text.norm(it) == n }?.let { return it }
+            aliases[n]?.let { a -> opts.firstOrNull { Text.norm(it) == Text.norm(a) }?.let { return it } }
+            return value
+        }
         fun today(): String = SimpleDateFormat("dd/MM/yyyy", Locale("pt", "BR")).format(Date())
         fun friendly(e: Throwable): String = when {
             e is io.github.vprodc83.gamecatalog.google.GoogleAuth.NeedsLogin -> tr("Entre com a sua conta Google.")

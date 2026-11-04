@@ -262,5 +262,22 @@
 "Google denegó el acceso a esta hoja para la cuenta {0}. Debe estar compartida con exactamente ese correo como Editor (en Google Sheets: Compartir). Si el móvil usa otra cuenta de Google, inicia sesión con la cuenta que recibió el acceso.",
 "(desconocida)",
 "Sesión iniciada como {0}. La hoja debe estar compartida con este correo como Editor.",
-"Iniciar sesión con otra cuenta de Google"
+"Iniciar sesión con otra cuenta de Google",
+"Atención: {0} ya está en la colección (fila {1}).",
+"Desmarcar todos",
+"¿Faltan en {0}?",
+"¿Añadir a {0}?",
+"Añadir {0} juego(s)",
+"Juegos que faltan en {0}",
+"Marcar todos",
+"No falta nada: todos los buscados marcados COMPRADO y las compras recibidas ya están en {0}.",
+"Juego nuevo",
+"Juego nuevo en la colección",
+"Los marcados “aún no recibido” siguen pendientes en compras.",
+"Buscados marcados COMPRADO y compras recibidas que no están en {0}. Desmarca lo que no quieras añadir. No se modifica ninguna fila existente.",
+"aún no recibido",
+"la consola {0} no está en la lista de la tabla; ajústala luego en Editar datos",
+"de {0}",
+"{0} (fuera de la lista)",
+"{0} juego(s) añadido(s) a {1}."
 ]

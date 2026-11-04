@@ -262,5 +262,22 @@
 "Google ha negato l'accesso a questo foglio per l'account {0}. Deve essere condiviso esattamente con questa e-mail come Editor (in Google Sheets: Condividi). Se il telefono usa un altro account Google, accedi con l'account che ha ricevuto la condivisione.",
 "(sconosciuto)",
 "Accesso effettuato come {0}. Il foglio deve essere condiviso con questa e-mail come Editor.",
-"Accedi con un altro account Google"
+"Accedi con un altro account Google",
+"Attenzione: {0} è già nella collezione (riga {1}).",
+"Deseleziona tutti",
+"Mancano in {0}?",
+"Aggiungere a {0}?",
+"Aggiungi {0} gioco/giochi",
+"Giochi che mancano in {0}",
+"Seleziona tutti",
+"Non manca nulla: tutti i cercati segnati COMPRADO e gli acquisti ricevuti sono già in {0}.",
+"Nuovo gioco",
+"Nuovo gioco nella collezione",
+"Quelli segnati “non ancora ricevuto” sono ancora in sospeso negli acquisti.",
+"Cercati segnati COMPRADO e acquisti ricevuti che non sono in {0}. Deseleziona ciò che non vuoi aggiungere. Nessuna riga esistente viene modificata.",
+"non ancora ricevuto",
+"la console {0} non è nell'elenco della tabella; correggila poi in Modifica dati",
+"da {0}",
+"{0} (fuori elenco)",
+"{0} gioco/giochi aggiunto/i a {1}."
 ]

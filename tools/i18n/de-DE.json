@@ -262,5 +262,22 @@
 "Google hat den Zugriff auf diese Tabelle für das Konto {0} verweigert. Sie muss genau mit dieser E-Mail als Bearbeiter geteilt sein (in Google Sheets: Teilen). Wenn das Handy ein anderes Google-Konto nutzt, melde dich mit dem Konto an, mit dem geteilt wurde.",
 "(unbekannt)",
 "Angemeldet als {0}. Die Tabelle muss mit dieser E-Mail als Bearbeiter geteilt sein.",
-"Mit einem anderen Google-Konto anmelden"
+"Mit einem anderen Google-Konto anmelden",
+"Achtung: {0} ist schon in der Sammlung (Zeile {1}).",
+"Alle abwählen",
+"Fehlt in {0}?",
+"Zu {0} hinzufügen?",
+"{0} Spiel(e) hinzufügen",
+"Spiele, die in {0} fehlen",
+"Alle auswählen",
+"Nichts fehlt: Alle als COMPRADO markierten Gesuchten und alle erhaltenen Käufe sind schon in {0}.",
+"Neues Spiel",
+"Neues Spiel in der Sammlung",
+"Als „noch nicht erhalten“ markierte Einträge sind bei den Käufen noch offen.",
+"Als COMPRADO markierte Gesuchte und erhaltene Käufe, die nicht in {0} stehen. Wähle ab, was du nicht hinzufügen willst. Keine bestehende Zeile wird geändert.",
+"noch nicht erhalten",
+"Konsole {0} steht nicht in der Liste der Tabelle; später unter Daten bearbeiten anpassen",
+"aus {0}",
+"{0} (nicht in der Liste)",
+"{0} Spiel(e) zu {1} hinzugefügt."
 ]

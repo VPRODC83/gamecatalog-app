@@ -262,5 +262,22 @@
 "Google a refusé l'accès à ce tableur pour le compte {0}. Il doit être partagé avec exactement cet e-mail en tant qu'Éditeur (dans Google Sheets : Partager). Si le téléphone utilise un autre compte Google, connectez-vous avec le compte qui a reçu le partage.",
 "(inconnu)",
 "Connecté en tant que {0}. Le tableur doit être partagé avec cet e-mail en tant qu'Éditeur.",
-"Se connecter avec un autre compte Google"
+"Se connecter avec un autre compte Google",
+"Attention : {0} est déjà dans la collection (ligne {1}).",
+"Tout décocher",
+"Manquants dans {0} ?",
+"Ajouter à {0} ?",
+"Ajouter {0} jeu(x)",
+"Jeux manquants dans {0}",
+"Tout cocher",
+"Rien ne manque : tous les jeux recherchés marqués COMPRADO et les achats reçus sont déjà dans {0}.",
+"Nouveau jeu",
+"Nouveau jeu dans la collection",
+"Les éléments marqués « pas encore reçu » sont toujours en attente dans les achats.",
+"Jeux recherchés marqués COMPRADO et achats reçus absents de {0}. Décochez ce que vous ne voulez pas ajouter. Aucune ligne existante n'est modifiée.",
+"pas encore reçu",
+"la console {0} n'est pas dans la liste du tableau ; corrigez-la ensuite dans Modifier les données",
+"de {0}",
+"{0} (hors liste)",
+"{0} jeu(x) ajouté(s) à {1}."
 ]

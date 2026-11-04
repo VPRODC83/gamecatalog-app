@@ -262,3 +262,20 @@ O Google negou o acesso a esta planilha para a conta {0}. Ela precisa estar comp
 (desconhecida)
 Conectado como {0}. A planilha precisa estar compartilhada com este e-mail como Editor.
 Entrar com outra conta Google
+Atenção: já existe {0} na coleção (linha {1}).
+Desmarcar todos
+Faltam em {0}?
+Incluir em {0}?
+Incluir {0} jogo(s)
+Jogos que faltam em {0}
+Marcar todos
+Nada faltando: todos os procurados marcados COMPRADO e as compras recebidas já estão em {0}.
+Novo jogo
+Novo jogo na coleção
+Os marcados “ainda não recebido” estão pendentes nas compras.
+Procurados marcados COMPRADO e compras recebidas que não estão em {0}. Desmarque o que não quiser incluir. Nenhuma linha existente é alterada.
+ainda não recebido
+console {0} não está na lista da tabela; ajuste depois em Editar dados
+de {0}
+{0} (fora da lista)
+{0} jogo(s) incluído(s) em {1}.

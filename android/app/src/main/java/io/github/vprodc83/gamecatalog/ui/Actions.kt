@@ -28,6 +28,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import io.github.vprodc83.gamecatalog.core.Prices
 import io.github.vprodc83.gamecatalog.data.Item
+import io.github.vprodc83.gamecatalog.data.Lista
 import io.github.vprodc83.gamecatalog.data.Repo
 import io.github.vprodc83.gamecatalog.google.Sheets
 import kotlinx.coroutines.Dispatchers
@@ -35,14 +36,46 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 
-/** Campo de console com sugestões dos consoles que já estão na coleção. */
+/**
+ * Campo de uma coluna da planilha: se a coluna é uma lista suspensa na tabela, mostra um menu com
+ * exatamente as mesmas opções; senão, um campo de texto. Um valor antigo fora da lista continua visível.
+ */
+@Composable
+fun ColField(m: AppModel, tab: String, col: Int, label: String, value: String, onChange: (String) -> Unit) {
+    val opts = m.repo.options(tab, col)
+    if (opts == null) { Field(label, value, onChange); return }
+    val list = buildList {
+        add("" to tr("(vazio)"))
+        opts.filter { it.isNotBlank() }.forEach { add(it to cn(it)) }
+        if (value.isNotBlank() && opts.none { it == value }) add(value to tr("{0} (fora da lista)", value))
+    }
+    Picker(label, value, list) { onChange(it) }
+}
+
+/** Console: menu da tabela da coleção, quando a coluna é lista suspensa; senão, texto com sugestões. */
 @Composable
 fun ConsoleField(m: AppModel, value: String, onChange: (String) -> Unit) {
+    val c = m.repo.state.value.config?.colecao
+    if (c != null && m.repo.options(c.aba, c.console) != null) {
+        ColField(m, c.aba, c.console, tr("Console"), value, onChange); return
+    }
     OutlinedTextField(value = value, onValueChange = { onChange(it.uppercase()) }, label = { Text(tr("Console")) }, singleLine = true, modifier = Modifier.fillMaxWidth(),
         supportingText = if (cn(value) != value) ({ Text(cn(value)) }) else null)
     val sug = m.repo.state.value.consoles.filter { it != value && (value.isBlank() || it.contains(value, true)) }.take(8)
     if (sug.isNotEmpty()) Chips { sug.forEach { AssistChip(onClick = { onChange(it) }, label = { Text(cn(it)) }) } }
 }
+
+/** Região: menu da tabela da coleção, quando houver. */
+@Composable
+fun RegionField(m: AppModel, label: String, value: String, onChange: (String) -> Unit) {
+    val c = m.repo.state.value.config?.colecao
+    if (c != null && c.regiao >= 0) ColField(m, c.aba, c.regiao, label, value, onChange)
+    else Field(label, value, onChange)
+}
+
+/** Valor inicial já ajustado às opções da coleção (ex.: FC → FAMICOM, USA → US). */
+fun snapConsole(m: AppModel, v: String) = m.repo.state.value.config?.colecao?.let { m.repo.snap(it.aba, it.console, v) } ?: v
+fun snapRegion(m: AppModel, v: String) = m.repo.state.value.config?.colecao?.let { if (it.regiao >= 0) m.repo.snap(it.aba, it.regiao, v) else v } ?: v
 
 @Composable
 private fun Field(label: String, value: String, onChange: (String) -> Unit) =
@@ -59,30 +92,36 @@ fun ConfirmDialog(title: String, confirm: String, onClose: () -> Unit, enabled: 
 
 @Composable
 fun BuyDialog(m: AppModel, console0: String, nome0: String, want: Item?, onClose: () -> Unit) {
-    var console by remember { mutableStateOf(console0) }; var nome by remember { mutableStateOf(nome0) }
-    var regiao by remember { mutableStateOf(want?.regiao ?: "") }; var obs by remember { mutableStateOf("") }
+    var console by remember { mutableStateOf(snapConsole(m, console0)) }; var nome by remember { mutableStateOf(nome0) }
+    var regiao by remember { mutableStateOf(snapRegion(m, want?.regiao ?: "")) }; var obs by remember { mutableStateOf("") }
     val cfg = m.repo.state.value.config
     ConfirmDialog(tr("Comprei"), tr("Anotar na planilha"), onClose, enabled = nome.isNotBlank(), onConfirm = {
         onClose(); m.run { val w = m.repo.buy(console, nome.trim(), regiao, obs, want); m.repo.refresh(); m.message = w ?: tr("Anotado em {0}. Quando chegar, toque em Recebi.", cfg?.compras) }
     }) {
         ConsoleField(m, console) { console = it }
         Field(tr("Nome"), nome) { nome = it }
-        Field(tr("Região (opcional)"), regiao) { regiao = it }
+        RegionField(m, tr("Região (opcional)"), regiao) { regiao = it }
         Field(tr("Observação (onde, preço…)"), obs) { obs = it }
         Hint(tr("Vai para a aba {0} como uma linha nova.", cfg?.compras ?: "COMPRAS") + if (want != null) tr(" Na aba {0}, a linha {1} será marcada COMPRADO.", cn(want.aba), want.linha) else "")
     }
 }
 
+/** Jogo novo na coleção: todas as colunas de GAMES, com os menus da tabela; confere antes de gravar. */
 @Composable
 fun AddCollectionDialog(m: AppModel, console0: String, nome0: String, onClose: () -> Unit) {
-    var console by remember { mutableStateOf(console0) }; var nome by remember { mutableStateOf(nome0) }; var regiao by remember { mutableStateOf("") }
     val c = m.repo.state.value.config?.colecao ?: return
-    ConfirmDialog(tr("Pôr na coleção"), tr("Incluir linha"), onClose, enabled = nome.isNotBlank() && console.isNotBlank(), onConfirm = {
-        onClose(); m.run { m.repo.addToCollection(m.repo.emptyCollectionRow(console, nome.trim(), regiao)); m.repo.refresh(); m.message = tr("Incluído na coleção.") }
+    val vals = remember { mutableStateListOf<String>().apply { addAll(m.repo.emptyCollectionRow(console0, nome0, "")) } }
+    var review by remember { mutableStateOf(false) }
+    val dup = remember(vals[c.nome], vals[c.console]) { m.repo.find(vals[c.nome], vals[c.console].ifBlank { null }).filter { it.item.lista == Lista.COLECAO } }
+    fun label(i: Int) = "${Sheets.col(i)} · ${m.colName(i)}"
+    if (!review) ConfirmDialog(tr("Novo jogo na coleção"), tr("Revisar"), onClose, enabled = vals[c.nome].isNotBlank() && vals[c.console].isNotBlank(), onConfirm = { review = true }) {
+        vals.indices.forEach { i -> if (i == c.console) ConsoleField(m, vals[i]) { vals[i] = it } else ColField(m, c.aba, i, label(i), vals[i]) { vals[i] = it } }
+        dup.firstOrNull()?.let { Text(tr("Atenção: já existe {0} na coleção (linha {1}).", it.item.nome, it.item.linha), color = MaterialTheme.colorScheme.error) }
+    } else ConfirmDialog(tr("Incluir em {0}?", c.aba), tr("Incluir linha"), { review = false }, onConfirm = {
+        onClose(); val v = vals.toList()
+        m.run { m.repo.addToCollection(v); m.repo.refresh(); m.message = tr("Incluído na coleção.") }
     }) {
-        ConsoleField(m, console) { console = it }
-        Field(tr("Nome"), nome) { nome = it }
-        if (c.regiao >= 0) Field(tr("Região"), regiao) { regiao = it }
+        vals.forEachIndexed { i, v -> if (v.isNotBlank()) Text("${m.colName(i)}: ${if (i == c.console) cn(v) else v}") }
         Hint(tr("Será uma linha nova no fim da aba {0}. Nenhuma linha existente é alterada.", c.aba))
     }
 }
@@ -113,7 +152,7 @@ fun EditDialog(m: AppModel, item: Item, onClose: () -> Unit) {
     fun label(i: Int) = "${Sheets.col(i)} · ${m.colName(i)}"
     if (!review) ConfirmDialog(tr("Editar {0}", item.nome), tr("Revisar"), onClose, enabled = diffs.isNotEmpty(), onConfirm = { review = true }) {
         Hint(tr("Aba {0}, linha {1}.", cn(item.aba), item.linha))
-        vals.indices.forEach { i -> Field(label(i), vals[i]) { vals[i] = it } }
+        vals.indices.forEach { i -> ColField(m, item.aba, i, label(i), vals[i]) { vals[i] = it } }
     } else ConfirmDialog(tr("Confirmar alteração"), tr("Sim, alterar a planilha"), { review = false }, onConfirm = {
         onClose(); val novos = vals.toList()
         m.run {
@@ -173,7 +212,7 @@ fun ReceiveDialog(m: AppModel, buy: Item, onClose: () -> Unit) {
         }
     }) {
         Hint(tr("Linha nova no fim da aba {0}. Preencha o que quiser:", c.aba))
-        vals.indices.forEach { i -> Field("${Sheets.col(i)} · ${m.colName(i)}", vals[i]) { vals[i] = it } }
+        vals.indices.forEach { i -> ColField(m, c.aba, i, "${Sheets.col(i)} · ${m.colName(i)}", vals[i]) { vals[i] = it } }
     }
 }
 

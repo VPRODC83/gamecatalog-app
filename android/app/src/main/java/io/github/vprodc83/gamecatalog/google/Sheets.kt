@@ -70,17 +70,27 @@ class Sheets(private val token: suspend () -> String) {
     }
 
     /** Tabela do Google Sheets (Formatar → Converter em tabela) dentro de uma aba. Índices começam em 0; fim exclusivo. */
-    data class Table(val sheetId: Int, val tab: String, val tableId: String, val name: String, val startRow: Int, val endRow: Int, val startCol: Int, val endCol: Int)
+    data class Table(val sheetId: Int, val tab: String, val tableId: String, val name: String, val startRow: Int, val endRow: Int, val startCol: Int, val endCol: Int,
+                     /** opções das colunas com lista suspensa, pela coluna da aba (0 = A) */ val dropdowns: Map<Int, List<String>> = emptyMap())
 
     suspend fun tables(id: String): List<Table> {
-        val arr = call("GET", "$base$id?fields=sheets(properties(sheetId,title),tables(tableId,name,range))").optJSONArray("sheets") ?: JSONArray()
+        val arr = call("GET", "$base$id?fields=sheets(properties(sheetId,title),tables(tableId,name,range,columnProperties(columnIndex,columnType,dataValidationRule)))").optJSONArray("sheets") ?: JSONArray()
         val out = ArrayList<Table>()
         for (i in 0 until arr.length()) {
             val s = arr.getJSONObject(i); val p = s.getJSONObject("properties"); val ts = s.optJSONArray("tables") ?: continue
             for (k in 0 until ts.length()) {
                 val t = ts.getJSONObject(k); val r = t.optJSONObject("range") ?: continue
+                val sc = r.optInt("startColumnIndex", 0)
+                val dd = HashMap<Int, List<String>>()
+                val cps = t.optJSONArray("columnProperties") ?: JSONArray()
+                for (j in 0 until cps.length()) {
+                    val cp = cps.getJSONObject(j)
+                    if (cp.optString("columnType") != "DROPDOWN") continue
+                    val vs = cp.optJSONObject("dataValidationRule")?.optJSONObject("condition")?.optJSONArray("values") ?: continue
+                    dd[sc + cp.optInt("columnIndex", 0)] = (0 until vs.length()).map { vs.getJSONObject(it).optString("userEnteredValue") }.distinct()
+                }
                 out.add(Table(p.getInt("sheetId"), p.getString("title"), t.getString("tableId"), t.optString("name"),
-                    r.optInt("startRowIndex", 0), r.optInt("endRowIndex", 0), r.optInt("startColumnIndex", 0), r.optInt("endColumnIndex", 0)))
+                    r.optInt("startRowIndex", 0), r.optInt("endRowIndex", 0), sc, r.optInt("endColumnIndex", 0), dd))
             }
         }
         return out
