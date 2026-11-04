@@ -197,10 +197,24 @@ class Repo(private val dir: File, val sheets: Sheets) {
         return DeleteResult.Ok
     }
 
+    /**
+     * Acrescenta linhas a uma aba. Se a aba tem uma tabela do Google Sheets que começa na coluna A
+     * (como a tabela GAMES), as linhas entram dentro da tabela; senão, vão para o fim da aba como antes.
+     */
+    private suspend fun appendRows(tab: String, width: Int, rows: List<List<String>>) {
+        val t = runCatching { sheets.tables(sheetId) }.getOrDefault(emptyList()).firstOrNull { it.tab == tab && it.startCol == 0 && it.startRow == 0 }
+        if (t != null) {
+            val w = t.endCol - t.startCol
+            val extra = rows.any { r -> r.drop(w).any { it.isNotBlank() } }
+            if (!extra) { sheets.appendToTable(sheetId, t, rows.map { r -> List(w) { k -> r.getOrElse(k) { "" } } }); return }
+        }
+        sheets.append(sheetId, "${q(tab)}!A1:${col(width - 1)}1", rows)
+    }
+
     /** Linha nova no fim da coleção; [valores] tem uma posição por coluna da aba. */
     suspend fun addToCollection(valores: List<String>) {
         val c = cfg.colecao
-        sheets.append(sheetId, "${q(c.aba)}!A1:${col(c.ultima)}1", listOf(pad(valores, c.ultima + 1)))
+        appendRows(c.aba, c.ultima + 1, listOf(pad(valores, c.ultima + 1)))
     }
 
     fun emptyCollectionRow(console: String, nome: String, regiao: String): MutableList<String> {
@@ -213,13 +227,13 @@ class Repo(private val dir: File, val sheets: Sheets) {
         val w = cfg.procurados.getOrNull(wi) ?: throw IllegalStateException(tr("Nenhuma aba de procurados configurada"))
         val n = maxOf(w.nome, w.status, w.consoleCol, w.info) + 1
         val row = MutableList(n) { "" }.also { it[w.nome] = nome; if (w.consoleCol >= 0) it[w.consoleCol] = console; if (w.info >= 0) it[w.info] = info }
-        sheets.append(sheetId, "${q(w.aba)}!A1:${col(n - 1)}1", listOf(row))
+        appendRows(w.aba, n, listOf(row))
     }
 
     /** Comprei: linha nova na lista de compras e, se veio dos procurados, marca COMPRADO lá. Devolve um aviso, se houver. */
     suspend fun buy(console: String, nome: String, regiao: String, obs: String, want: Item?): String? {
         ensureTab(cfg.compras, Config.BUY_HEAD)
-        sheets.append(sheetId, "${q(cfg.compras)}!A1:H1", listOf(listOf(today(), console, nome, regiao, want?.aba ?: "", "COMPRADO", "", obs)))
+        appendRows(cfg.compras, 8, listOf(listOf(today(), console, nome, regiao, want?.aba ?: "", "COMPRADO", "", obs)))
         if (want != null) {
             val w = cfg.procurados.getOrNull(want.wi) ?: return null
             if (w.status < 0) return null

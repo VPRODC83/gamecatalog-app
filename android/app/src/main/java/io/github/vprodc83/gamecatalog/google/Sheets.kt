@@ -69,6 +69,30 @@ class Sheets(private val token: suspend () -> String) {
         return "![A-Z]+(\\d+)".toRegex().find(ur)?.groupValues?.get(1)?.toIntOrNull()
     }
 
+    /** Tabela do Google Sheets (Formatar → Converter em tabela) dentro de uma aba. Índices começam em 0; fim exclusivo. */
+    data class Table(val sheetId: Int, val tab: String, val tableId: String, val name: String, val startRow: Int, val endRow: Int, val startCol: Int, val endCol: Int)
+
+    suspend fun tables(id: String): List<Table> {
+        val arr = call("GET", "$base$id?fields=sheets(properties(sheetId,title),tables(tableId,name,range))").optJSONArray("sheets") ?: JSONArray()
+        val out = ArrayList<Table>()
+        for (i in 0 until arr.length()) {
+            val s = arr.getJSONObject(i); val p = s.getJSONObject("properties"); val ts = s.optJSONArray("tables") ?: continue
+            for (k in 0 until ts.length()) {
+                val t = ts.getJSONObject(k); val r = t.optJSONObject("range") ?: continue
+                out.add(Table(p.getInt("sheetId"), p.getString("title"), t.getString("tableId"), t.optString("name"),
+                    r.optInt("startRowIndex", 0), r.optInt("endRowIndex", 0), r.optInt("startColumnIndex", 0), r.optInt("endColumnIndex", 0)))
+            }
+        }
+        return out
+    }
+
+    /** Linhas novas DENTRO da tabela: o Google acrescenta no fim do corpo da tabela (antes do rodapé, se houver). */
+    suspend fun appendToTable(id: String, t: Table, values: List<List<String>>) {
+        val rows = JSONArray(values.map { r -> JSONObject().put("values", JSONArray(r.map { v -> JSONObject().put("userEnteredValue", JSONObject().put("stringValue", v)) })) })
+        call("POST", "$base$id:batchUpdate", JSONObject().put("requests", JSONArray().put(JSONObject().put("appendCells",
+            JSONObject().put("sheetId", t.sheetId).put("tableId", t.tableId).put("rows", rows).put("fields", "userEnteredValue")))))
+    }
+
     /** Número interno da aba (usado para apagar linhas). */
     suspend fun tabId(id: String, title: String): Int {
         val arr = call("GET", "$base$id?fields=sheets.properties(sheetId,title)").optJSONArray("sheets") ?: JSONArray()
