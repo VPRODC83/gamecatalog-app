@@ -1,5 +1,7 @@
 # Aplicativo Android: o que o dono precisa fazer
 
+> A versão web (app no navegador e instalador) foi descontinuada em 03/11/2026. O site https://vprodc83.github.io/ agora só tem a página de download, a política de privacidade e os termos, publicados a partir de `docs/site/`.
+
 O aplicativo Android (pasta `android/`) é montado e assinado automaticamente pelo GitHub
 a cada versão nova, junto com o site. Ele **não usa Gemini nem nenhuma IA na nuvem**:
 
@@ -14,7 +16,7 @@ a cada versão nova, junto com o site. Ele **não usa Gemini nem nenhuma IA na n
   PriceCharting convertidos pelo dólar do dia, guardados na aba PRECOS.
 - **Cópia de segurança:** Ajustes → Exportar .xlsx.
 
-As abas e colunas são as mesmas do app web (aba APP_CONFIG), então os dois funcionam com a mesma planilha.
+A configuração das abas e colunas fica na própria planilha (aba APP_CONFIG), e vale para todos os celulares que usam a mesma planilha.
 
 ## Passo 1 — Senha da chave de assinatura (uma vez só)
 
@@ -32,7 +34,7 @@ atualizações que o Android aceite por cima da versão instalada.
 
 ## Passo 2 — Permitir o login no Android (Google Cloud, uma vez só)
 
-Use o **mesmo projeto** do Google Cloud do app web.
+Use o projeto do Google Cloud do Game Catalog (o mesmo já configurado).
 
 1. https://console.cloud.google.com/apis/library/sheets.googleapis.com → **Ativar**
    (se já estiver ativada, aparece "Gerenciar").
@@ -60,7 +62,7 @@ tela "O Google não verificou este app" → **Continuar**. Isso é normal nesta 
    fonte** (o navegador): permita e volte.
 4. Abra o **Game Catalog** → **Entrar com Google** → escolha a conta → permita o acesso às planilhas.
 5. Cole o link da planilha (no app Google Sheets: Compartilhar → Copiar link) → **Usar esta planilha**.
-   Se ela já foi configurada pelo app web, entra direto; se não, confira as abas e colunas e salve.
+   Se ela já foi configurada antes, entra direto; se não, confira as abas e colunas e salve.
 
 Para a sua esposa: compartilhe a planilha com o e-mail dela como **Editor** e, no app, em
 Ajustes → **Enviar link para alguém**. Ela copia o link e cola no app (ou, no WhatsApp, segura a
