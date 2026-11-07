@@ -101,10 +101,11 @@ pedir acesso; não há cobrança nem cartão. Ele dá duas chaves:
 | **Pública** | Uso dentro de aplicativos | Por endereço de internet (IP): cada celular tem a sua cota mensal | **Esta vai no app** |
 | Privada | Montar uma cópia dos dados num servidor | 6.000 pedidos no total, compartilhados | **Nunca** colocar no app nem no GitHub |
 
-1. Crie uma conta no fórum: https://forums.thegamesdb.net → **Register**. Confirme o e-mail.
-2. Entre no fórum e abra a seção de pedidos de chave da API (o link aparece em https://api.thegamesdb.net/key.php
-   depois de entrar: "request access to the api via the forum"). Clique em **New Topic** e cole o texto abaixo.
-3. Espere a aprovação (é manual; pode levar alguns dias). Você recebe aviso no fórum.
+1. Crie a conta no **site** (não no fórum): https://thegamesdb.net/register.php — usuário, senha, e-mail (use Gmail; eles
+   avisam que Hotmail/Outlook não recebe os e-mails deles) e o código da imagem. Confirme pelo e-mail recebido.
+2. Entre em https://thegamesdb.net com essa conta. No **rodapé** da página, clique em **API Access Request**, preencha
+   o formulário (pode usar o texto abaixo) e envie. A mesma conta passa a valer no fórum.
+3. Espere a aprovação (é manual; pode levar alguns dias).
 4. Com a conta aprovada, abra https://api.thegamesdb.net/key.php (logado) e copie a **Public API Key**.
 5. No GitHub, em https://github.com/VPRODC83/gamecatalog-app/settings/secrets/actions → **New repository secret**:
    Name `TGDB_API_KEY`, Secret = a chave pública. A próxima versão do app já sai usando o TheGamesDB.
