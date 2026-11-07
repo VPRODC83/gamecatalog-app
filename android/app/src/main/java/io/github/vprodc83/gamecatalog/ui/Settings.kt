@@ -163,6 +163,7 @@ fun SettingsScreen(m: AppModel, onChangeSheet: () -> Unit, onMapping: () -> Unit
                 }
             }
         }
+        CoverIndexCard(m)
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 SectionTitle(tr("Aplicativo"))
@@ -248,6 +249,40 @@ private fun AddedColumnBox(m: AppModel) {
                     Hint(tr("Se alguém incluir jogos direto no Google Sheets, preencha a data à mão nessa coluna."))
                 }
             }
+        }
+    }
+}
+
+/** Melhoria 16: prepara o reconhecimento pela imagem da capa (índice guardado só no celular). */
+@Composable
+private fun CoverIndexCard(m: AppModel) {
+    val mt = m.matcher
+    val st by m.repo.state.collectAsState()
+    var console by remember { mutableStateOf("") }
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            SectionTitle(tr("Reconhecimento pela capa"))
+            Hint(tr("Compara a foto com capas já conhecidas, no próprio celular. Ajuda quando a etiqueta não tem nome legível."))
+            Text(tr("{0} capas preparadas · {1}", mt.count, Storage.human(mt.sizeBytes())))
+            if (mt.running) {
+                androidx.compose.material3.LinearProgressIndicator(progress = { if (mt.total > 0) mt.done.toFloat() / mt.total else 0f }, modifier = Modifier.fillMaxWidth())
+                Hint(tr("{0} de {1}", mt.done, mt.total))
+                OutlinedButton(onClick = { mt.cancel() }) { Text(tr("Interromper")) }
+            } else {
+                OutlinedButton(onClick = { mt.buildFromLists() }) { Text(tr("Preparar com a minha coleção e listas")) }
+                val cat = m.catalog
+                val opts = st.consoles.mapNotNull { c -> val r = m.repo.platformOf(c); cat?.repo(r)?.let { c to r } }.distinctBy { it.second }
+                if (opts.isNotEmpty()) {
+                    Picker(tr("Todos os jogos de um console"), console, listOf("" to tr("(escolha)")) + opts.map { it.first to cn(it.first) }) { console = it }
+                    opts.firstOrNull { it.first == console }?.let { (c, r) ->
+                        val n = cat?.repo(r)?.names?.size ?: 0
+                        Hint(tr("Cerca de {0} capas: baixa uns {1} e guarda uns {2}. Só no Wi-Fi.", n, Storage.human(n * 30_000L), Storage.human(n * 1_100L)))
+                        OutlinedButton(onClick = { mt.buildConsole(r, c) }) { Text(tr("Preparar {0}", cn(c))) }
+                    }
+                }
+                if (mt.count > 0) TextButton(onClick = { mt.clear() }) { Text(tr("Apagar o que foi preparado")) }
+            }
+            mt.status?.let { Hint(it) }
         }
     }
 }

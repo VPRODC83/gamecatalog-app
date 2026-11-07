@@ -151,6 +151,14 @@ class CoreTest {
         assertEquals("https://www.vgdb.com.br/xbox-one/jogos/forza-horizon-4/", v.page("FORZA HORIZON 4", "XONE", ""))
     }
 
+    @Test fun serialCodesFromLabelText() {
+        val s = io.github.vprodc83.gamecatalog.core.Serials.load(File("src/main/assets/serials.json.gz").inputStream())
+        val hits = s.find("SUPER NINTENDO\nSNS-MW-USA\nMADE IN JAPAN\nNUS-NSME-USA")
+        assertEquals(listOf("Super Mario World", "Super Mario 64"), hits.map { Catalog.cleanTitle(it.nome) })
+        assertEquals("Metal Gear Solid", Catalog.cleanTitle(s.find("SLUS-00594 ©1998 KONAMI").first().nome))
+        assertTrue(s.find("LICENSED BY NINTENDO MADE IN USA").isEmpty())
+    }
+
     @Test fun misc() {
         assertEquals("1AbCdEfGhIjKlMnOpQrStUvWxYz0123", Sheets.idFromLink("https://docs.google.com/spreadsheets/d/1AbCdEfGhIjKlMnOpQrStUvWxYz0123/edit?usp=sharing"))
         assertEquals("AA", Sheets.col(26))

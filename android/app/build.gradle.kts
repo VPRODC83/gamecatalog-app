@@ -47,6 +47,7 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
+    androidResources { noCompress += "tflite" }
     buildFeatures { compose = true; buildConfig = true }
     testOptions {
         unitTests.isIncludeAndroidResources = true
@@ -54,7 +55,7 @@ android {
         unitTests.all { t -> System.getenv("ROBOLECTRIC_REPO")?.let { t.systemProperty("robolectric.dependency.repo.url", it) } }
     }
     lint { abortOnError = false; checkReleaseBuilds = true }
-    packaging { resources.excludes += "/META-INF/{AL2.0,LGPL2.1}" }
+    packaging { resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"; jniLibs.useLegacyPackaging = true }
 }
 
 kotlin { compilerOptions { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17) } }
@@ -73,6 +74,17 @@ dependencies {
     debugImplementation("androidx.compose.ui:ui-tooling")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.10.2")
+    implementation("com.google.android.gms:play-services-mlkit-barcode-scanning:18.3.1")
+    implementation("com.google.android.gms:play-services-mlkit-document-scanner:16.0.0")
+    implementation("androidx.exifinterface:exifinterface:1.4.1")
+    // câmera ao vivo (melhoria 14)
+    implementation("androidx.camera:camera-core:1.4.2")
+    implementation("androidx.camera:camera-camera2:1.4.2")
+    implementation("androidx.camera:camera-lifecycle:1.4.2")
+    implementation("androidx.camera:camera-view:1.4.2")
+    implementation("androidx.camera:camera-mlkit-vision:1.4.2")
+    // reconhecimento pela imagem da capa, no celular (melhoria 16)
+    implementation("com.google.mediapipe:tasks-vision:0.10.26.1")
     // leitura do texto das etiquetas no próprio aparelho (modelo embutido, sem internet)
     implementation("com.google.mlkit:text-recognition:16.0.1")
     // capas e páginas de preço

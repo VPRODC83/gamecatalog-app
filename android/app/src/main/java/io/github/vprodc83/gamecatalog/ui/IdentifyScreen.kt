@@ -63,7 +63,7 @@ import kotlinx.coroutines.withContext
 import java.io.File
 
 /** Um jogo candidato mostrado na tela de identificação. */
-data class Cand(val titulo: String, val console: String, val plataforma: String, val repo: String, val alternativas: List<Catalog.Match> = emptyList(), val origem: String)
+data class Cand(val titulo: String, val console: String, val plataforma: String, val repo: String, val alternativas: List<Catalog.Match> = emptyList(), val origem: String, val box: Identify.Block? = null)
 
 /** Lê o texto da foto no próprio aparelho (ML Kit) e devolve os blocos com a posição relativa. */
 suspend fun readText(ctx: Context, uri: Uri): Pair<List<Identify.Block>, String> {
@@ -103,21 +103,64 @@ fun IdentifyScreen(m: AppModel, onOpen: (Item) -> Unit) {
     var clip by remember { mutableStateOf<String?>(null) }
     var clipStamp by remember { mutableStateOf(-1L) }
     var search by remember { mutableStateOf("") }
+    var lida by remember { mutableStateOf<Reading?>(null) }
+    val marcadas = remember { mutableStateListOf<Int>() }
+    var aoVivo by remember { mutableStateOf(false) }
+    val parecidos = remember { mutableStateListOf<CoverMatcher.Similar>() }
+
+    /** Guarda o recorte da foto como capa provisória do jogo, se ele ainda não tem capa (melhoria 19). */
+    fun keepIdentPhoto(c: Cand, r: Reading, sozinho: Boolean) {
+        if (c.console.isBlank()) return
+        val chave = T.norm(c.console) + "|" + T.norm(c.titulo)
+        if (m.photo(chave, "capa") != null || m.photo(chave, "ident") != null || m.repo.state.value.capas[chave]?.get("capa") != null) return
+        scope.launch(Dispatchers.IO) {
+            runCatching {
+                val f = saveJpeg(if (sozinho) r.bitmap else cropAround(r.bitmap, c.box), File(m.photoDir(), "ident-${System.currentTimeMillis()}.jpg"))
+                withContext(Dispatchers.Main) { m.setPhoto(chave, "ident", f) }
+            }
+        }
+    }
 
     fun analyze(f: File) {
-        photo = f; cands.clear(); reading = true; status = tr("Lendo a etiqueta…")
+        photo = f; cands.clear(); marcadas.clear(); parecidos.clear(); lida = null; reading = true; status = tr("Lendo a etiqueta…")
         scope.launch {
             try {
-                val (blocks, text) = readText(ctx, fileUri(ctx, f))
+                val r = readPhoto(f); lida = r
+                val blocks = r.blocks; val text = r.text
                 var cat = m.catalog
                 var waited = 0
                 while (cat == null && m.catalogError == null && waited < 100) { kotlinx.coroutines.delay(100); waited++; cat = m.catalog }
                 if (cat == null) { status = m.catalogError ?: tr("O catálogo de jogos ainda está carregando. Tente de novo em instantes."); return@launch }
                 val repos = m.repo.state.value.consoles.map { m.repo.platformOf(it) }.filter { it.isNotEmpty() }.distinct()
+                // 1º código do produto impresso (exato, sem internet); 2º leitura do nome na etiqueta
+                val porCodigo = m.serials?.find(text) ?: emptyList()
+                porCodigo.forEach { h -> val t = Catalog.cleanTitle(h.nome); cands.add(Cand(t, consoleFor(m, h.repo), cat.label(h.repo), h.repo, origem = "codigo:" + h.code)) }
                 val found = withContext(Dispatchers.Default) { Identify.find(cat, blocks, text, repos) }
-                found.forEach { cands.add(Cand(it.match.tituloLimpo, consoleFor(m, it.match.repo), it.match.plataforma, it.match.repo, it.alternativas, "etiqueta")) }
+                found.filter { f0 -> cands.none { T.norm(it.titulo) == T.norm(f0.match.tituloLimpo) && it.repo == f0.match.repo } }
+                    .forEach { cands.add(Cand(it.match.tituloLimpo, consoleFor(m, it.match.repo), it.match.plataforma, it.match.repo, it.alternativas, "etiqueta", it.block)) }
+                cands.toList().forEach { keepIdentPhoto(it, r, cands.size == 1) }
+                // capas parecidas (melhoria 16), só se o índice já foi preparado em Ajustes
+                if (m.matcher.count > 0) scope.launch {
+                    val sim = runCatching { m.matcher.similar(r.bitmap) }.getOrDefault(emptyList())
+                    parecidos.clear(); parecidos.addAll(sim.filter { s0 -> cands.none { T.norm(it.titulo) == T.norm(s0.titulo) } })
+                    if (cands.isEmpty() && sim.isNotEmpty()) status = tr("Não li o nome, mas achei capas parecidas. Confira abaixo.")
+                }
+                // 3º código de barras da caixa (consulta o PriceCharting, em segundo plano)
+                r.barcodes.forEach { code ->
+                    scope.launch {
+                        val hit = withContext(Dispatchers.IO) { io.github.vprodc83.gamecatalog.core.Prices.byBarcode(code) } ?: return@launch
+                        val repo = io.github.vprodc83.gamecatalog.core.Prices.repoOfPcConsole(hit.second)
+                        val cons = if (repo.startsWith("@")) repo.drop(1) else consoleFor(m, repo)
+                        val c = Cand(hit.first, cons, if (repo.startsWith("@")) cn(repo.drop(1)) else cat.label(repo), repo.removePrefix("@"), origem = "barras:$code")
+                        if (cands.none { T.norm(it.titulo) == T.norm(c.titulo) }) { cands.add(0, c); keepIdentPhoto(c, r, true) }
+                        status = tr("Código de barras {0}: {1}", code, hit.first)
+                    }
+                }
+                val total = porCodigo.size + found.size
                 status = when {
-                    found.isNotEmpty() -> tr("Encontrei {0} jogo(s) pela etiqueta. Confira abaixo.", found.size)
+                    porCodigo.isNotEmpty() -> tr("Identificado pelo código impresso ({0}). Confira abaixo.", porCodigo.joinToString { it.code })
+                    found.isNotEmpty() -> tr("Encontrei {0} jogo(s) pela etiqueta. Confira abaixo.", total)
+                    r.barcodes.isNotEmpty() -> tr("Consultando o código de barras {0}…", r.barcodes.first())
                     text.isBlank() -> tr("Não consegui ler texto na foto. Use o Google Lens ou a busca por nome.")
                     else -> tr("Li o texto, mas não reconheci o jogo. Use o Google Lens ou a busca por nome.")
                 }
@@ -162,7 +205,16 @@ fun IdentifyScreen(m: AppModel, onOpen: (Item) -> Unit) {
                         }, modifier = Modifier.weight(1f)) { Icon(Icons.Default.PhotoCamera, null); Text(tr("  Fotografar")) }
                         OutlinedButton(onClick = { gallery.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }, modifier = Modifier.weight(1f)) { Icon(Icons.Default.Image, null); Text(tr("  Galeria")) }
                     }
-                    photo?.let { AsyncImage(model = it, contentDescription = tr("Foto"), modifier = Modifier.fillMaxWidth().heightIn(max = 260.dp)) }
+                    OutlinedButton(onClick = { aoVivo = true }, modifier = Modifier.fillMaxWidth()) { Text(tr("Câmera ao vivo (selos na prateleira)")) }
+                    val rd = lida
+                    if (rd != null && rd.words.isNotEmpty()) {
+                        WordPhoto(rd, marcadas.toSet(), onToggle = { i ->
+                            if (i in marcadas) marcadas.remove(i) else marcadas.add(i)
+                            // ordem de leitura: de cima para baixo, da esquerda para a direita
+                            search = marcadas.sortedWith(compareBy({ (rd.words[it].t * 20).toInt() }, { rd.words[it].l })).joinToString(" ") { rd.words[it].text }
+                        })
+                        Hint(tr("Toque nas palavras da foto para montar a busca (o resultado aparece em Buscar pelo nome, abaixo)."))
+                    } else photo?.let { AsyncImage(model = it, contentDescription = tr("Foto"), modifier = Modifier.fillMaxWidth().heightIn(max = 260.dp)) }
                     Row { if (reading) CircularProgressIndicator(Modifier.width(20.dp).padding(end = 8.dp)); Hint(status) }
                     photo?.let { f ->
                         OutlinedButton(onClick = { clipStamp = readClip(ctx)?.second ?: -1L; clip = null; lensPending = openLens(ctx, fileUri(ctx, f)) }, modifier = Modifier.fillMaxWidth()) {
@@ -186,6 +238,19 @@ fun IdentifyScreen(m: AppModel, onOpen: (Item) -> Unit) {
                 }
             }
         }
+        if (parecidos.isNotEmpty()) item {
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(tr("Parecido pela capa"), fontWeight = FontWeight.SemiBold)
+                    parecidos.toList().forEach { p ->
+                        TextButton(onClick = {
+                            parecidos.remove(p)
+                            cands.add(0, Cand(p.titulo, p.console.ifBlank { consoleFor(m, p.repo) }, m.catalog?.label(p.repo) ?: p.console, p.repo, origem = "capa"))
+                        }, modifier = Modifier.fillMaxWidth()) { Text("${p.titulo} · ${cn(p.console.ifBlank { m.catalog?.label(p.repo) ?: "" })} · ${(p.score * 100).toInt()}%", modifier = Modifier.fillMaxWidth()) }
+                    }
+                }
+            }
+        }
         items(cands, key = { it.repo + it.titulo }) { c -> CandCard(m, c, onOpen, onReplace = { nc -> val i = cands.indexOf(c); if (i >= 0) cands[i] = nc }) }
         item {
             Card(Modifier.fillMaxWidth()) {
@@ -197,6 +262,7 @@ fun IdentifyScreen(m: AppModel, onOpen: (Item) -> Unit) {
         }
         item { Spacer8() }
     }
+    if (aoVivo) LiveCameraDialog(m, onOpen = onOpen, onPick = { c -> if (cands.none { it.repo == c.repo && it.titulo == c.titulo }) cands.add(0, c) }, onClose = { aoVivo = false })
 }
 
 /** Busca por nome (ou parte dele) na planilha e no catálogo; ao escolher, vira um cartão de candidato. */
@@ -245,7 +311,12 @@ fun CandCard(m: AppModel, c: Cand, onOpen: (Item) -> Unit, onReplace: (Cand) -> 
                         want.isNotEmpty() -> Pill(tr("Está nos procurados"), Info)
                         else -> Pill(tr("Você não tem"), MaterialTheme.colorScheme.primary)
                     }
-                    Hint(when (c.origem) { "etiqueta" -> tr("Reconhecido pela etiqueta"); "planilha" -> tr("Escolhido da sua planilha"); "busca" -> tr("Escolhido no catálogo"); else -> tr("Nome digitado") })
+                    Hint(when {
+                        c.origem == "etiqueta" -> tr("Reconhecido pela etiqueta"); c.origem == "planilha" -> tr("Escolhido da sua planilha"); c.origem == "busca" -> tr("Escolhido no catálogo")
+                        c.origem.startsWith("codigo:") -> tr("Identificado pelo código {0} (exato)", c.origem.substringAfter(':'))
+                        c.origem == "capa" -> tr("Reconhecido pela imagem da capa")
+                        c.origem.startsWith("barras:") -> tr("Identificado pelo código de barras {0}", c.origem.substringAfter(':'))
+                        else -> tr("Nome digitado") })
                 }
             }
             found.take(3).forEach { f -> TextButton(onClick = { onOpen(f.item) }) { Text(tr("{0}: {1} · {2} (linha {3})", tr(f.item.lista.titulo), cn(f.item.console), f.item.nome, f.item.linha)) } }

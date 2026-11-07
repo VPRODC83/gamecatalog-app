@@ -103,6 +103,26 @@ object Prices {
         else -> emptyList()
     }
 
+    /** Jogo pelo código de barras (UPC/EAN da caixa), pela busca do PriceCharting: (título, console do PriceCharting, endereço). */
+    fun byBarcode(code: String): Triple<String, String, String>? = runCatching {
+        val (u, html) = get("https://www.pricecharting.com/search-products?type=prices&q=${enc(code)}")
+        val url = if (u.contains("/game/")) u else parseSearch(html).singleOrNull()?.first ?: return null
+        val page = if (url == u) html else get(url).second
+        val t = "<title>([^<]+?) Prices".toRegex().find(page)?.groupValues?.get(1)?.let { Text.unescapeHtml(it).trim() }
+            ?: url.substringAfterLast('/').replace('-', ' ')
+        Triple(t, url.substringAfter("/game/").substringBefore('/'), url)
+    }.getOrNull()
+
+    /** Acervo do libretro (ou "@CÓDIGO" dos consoles atuais) para o console do PriceCharting. */
+    fun repoOfPcConsole(pc: String): String {
+        val all = listOf(Platforms.SNES, Platforms.NES, Platforms.MD, Platforms.MS, Platforms.N64, Platforms.ATARI, "Sony_-_PlayStation", "Sony_-_PlayStation_2",
+            "Sony_-_PlayStation_3", "Sony_-_PlayStation_4", "Nintendo_-_Game_Boy", "Nintendo_-_Game_Boy_Color", "Nintendo_-_Game_Boy_Advance", "Nintendo_-_GameCube",
+            "Nintendo_-_Wii", "Nintendo_-_Wii_U", "Nintendo_-_Nintendo_DS", "Nintendo_-_Nintendo_3DS", "Sega_-_Saturn", "Sega_-_Dreamcast", "Sega_-_Game_Gear",
+            "Sega_-_Mega-CD_-_Sega_CD", "Microsoft_-_Xbox", "Microsoft_-_Xbox_360", "Sony_-_PlayStation_Portable", "SNK_-_Neo_Geo", "Magnavox_-_Odyssey2",
+            "Microsoft_-_MSX", "NEC_-_PC_Engine_-_TurboGrafx_16", "@XONE", "@XSX", "@PS5", "@NSW", "@NSW2", "@PSVITA")
+        return all.firstOrNull { pc in pcConsole(it) } ?: ""
+    }
+
     /** Cotação atual do dólar comercial em reais. */
     fun dollar(): Double? = runCatching { JSONObject(get("https://economia.awesomeapi.com.br/json/last/USD-BRL").second).getJSONObject("USDBRL").getString("bid").toDouble() }.getOrNull()
 }

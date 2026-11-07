@@ -82,6 +82,8 @@ class Catalog(val repos: List<Repo>) {
 
     companion object {
         private val bad = "\\((Beta|Proto|Demo|Sample|Pirate|Unl|Hack|Aftermarket|Kiosk)".toRegex(RegexOption.IGNORE_CASE)
+        /** Versões que não interessam (protótipos, demos, piratas…). */
+        fun bad(name: String): Boolean = bad.containsMatchIn(name)
         fun cleanTitle(n: String): String = n.replace("\\s*\\(.*$".toRegex(), "").replace(" _ ", " / ").trim()
         fun regionPrefs(r: String?): List<String> {
             val n = Text.norm(r)

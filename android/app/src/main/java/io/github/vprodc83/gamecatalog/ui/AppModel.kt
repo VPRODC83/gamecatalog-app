@@ -25,6 +25,8 @@ class AppModel(val ctx: Context, val auth: GoogleAuth) {
     val repo = Repo(ctx.filesDir, sheets)
     var catalog: Catalog? by mutableStateOf(null)
     var catalogError: String? by mutableStateOf(null)
+    /** Códigos de produto (SHVC-MW, SLUS-00594…) → jogo, sem internet (melhoria 15). */
+    var serials: io.github.vprodc83.gamecatalog.core.Serials? = null
     var loggedIn by mutableStateOf(false)
     var busy by mutableStateOf(false)
     var message by mutableStateOf<String?>(null)
@@ -39,6 +41,7 @@ class AppModel(val ctx: Context, val auth: GoogleAuth) {
                 runCatching { (runCatching { ctx.assets.open("catalog.json") }.getOrNull() ?: ctx.assets.open("catalog.json.gz")).use { Catalog.load(it) } }
             }
             catalog = r.getOrNull()
+            serials = withContext(Dispatchers.IO) { runCatching { (runCatching { ctx.assets.open("serials.json") }.getOrNull() ?: ctx.assets.open("serials.json.gz")).use { io.github.vprodc83.gamecatalog.core.Serials.load(it) } }.getOrNull() }
             resolver.vgdb = withContext(Dispatchers.IO) { runCatching { (runCatching { ctx.assets.open("vgdb.json") }.getOrNull() ?: ctx.assets.open("vgdb.json.gz")).use { io.github.vprodc83.gamecatalog.core.CoverSources.Vgdb.load(it) } }.getOrNull() }
             catalogError = r.exceptionOrNull()?.let { tr("Não consegui abrir o catálogo de jogos ({0}). A busca pela planilha continua funcionando.", it.message) }
         }
@@ -97,12 +100,15 @@ class AppModel(val ctx: Context, val auth: GoogleAuth) {
         photo(item.chave, tipo)?.let { return it }
         repo.state.value.capas[item.chave]?.get(tipo)?.let { if (it.origem == "url") return it.valor }
         resolver.cached(item, tipo)?.let { return it }
-        if (catalog == null) return null
+        // foto da identificação (melhoria 19): vale como capa só quando nenhuma fonte tem outra
+        val ident = if (tipo == "capa") photo(item.chave, "ident") else null
+        if (catalog == null) return ident
         resolver.request(item)
-        return null
+        return ident
     }
     fun clearAutoCovers() { resolver.clear() }
     val resolver = CoverResolver(this)
+    val matcher by lazy { CoverMatcher(this) }
 
     val covers = CoverUpdater(this)
     var showReview by mutableStateOf(false)

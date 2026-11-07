@@ -232,7 +232,26 @@ fun CoverDialog(m: AppModel, item: Item, tipo: String, onClose: () -> Unit) {
             keep(tmp)
         }
     }
+    // recortador de documentos do Android (melhoria 19): acha as bordas da caixa, endireita e corta o fundo
+    val scanLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { res ->
+        val uri = com.google.mlkit.vision.documentscanner.GmsDocumentScanningResult.fromActivityResultIntent(res.data)?.pages?.firstOrNull()?.imageUri
+        if (res.resultCode == android.app.Activity.RESULT_OK && uri != null) scope.launch {
+            val tmp = File(File(ctx.cacheDir, "fotos").apply { mkdirs() }, "r-${System.currentTimeMillis()}.jpg")
+            withContext(Dispatchers.IO) { ctx.contentResolver.openInputStream(uri)?.use { i -> tmp.outputStream().use { i.copyTo(it) } } }
+            keep(tmp)
+        }
+    }
+    fun scan() {
+        val act = generateSequence(ctx) { (it as? android.content.ContextWrapper)?.baseContext }.filterIsInstance<android.app.Activity>().firstOrNull() ?: return
+        val opts = com.google.mlkit.vision.documentscanner.GmsDocumentScannerOptions.Builder().setGalleryImportAllowed(true).setPageLimit(1)
+            .setResultFormats(com.google.mlkit.vision.documentscanner.GmsDocumentScannerOptions.RESULT_FORMAT_JPEG)
+            .setScannerMode(com.google.mlkit.vision.documentscanner.GmsDocumentScannerOptions.SCANNER_MODE_BASE).build()
+        com.google.mlkit.vision.documentscanner.GmsDocumentScanning.getClient(opts).getStartScanIntent(act)
+            .addOnSuccessListener { scanLauncher.launch(androidx.activity.result.IntentSenderRequest.Builder(it).build()) }
+            .addOnFailureListener { m.message = tr("O recorte automático não está disponível neste celular. Use Fotografar.") }
+    }
     ConfirmDialog(if (tipo == "capa") tr("Escolher a capa") else tr("Foto da mídia"), tr("Fechar"), onClose, onConfirm = onClose) {
+        Button(onClick = { scan() }, modifier = Modifier.fillMaxWidth()) { Text(tr("Fotografar com recorte automático")) }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton(onClick = { val f = File(File(ctx.cacheDir, "fotos").apply { mkdirs() }, "c-${System.currentTimeMillis()}.jpg"); shot.value = f; camera.launch(fileUri(ctx, f)) }) { Text(tr("Fotografar")) }
             OutlinedButton(onClick = { gallery.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }) { Text(tr("Galeria")) }

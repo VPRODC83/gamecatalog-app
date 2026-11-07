@@ -318,3 +318,36 @@ lançamento: sem data
 {0}: nova coluna {1}.
 {0}: não será criada ({1}).
 Identificação feita no próprio aparelho (leitura da etiqueta) e pelo Google Lens. Capas: libretro-thumbnails, Wikipédia, PriceCharting, VGDB, Tec Toy e TheGamesDB. Valores: PriceCharting. Datas de lançamento: Wikidata.
+Não li o nome, mas achei capas parecidas. Confira abaixo.
+Código de barras {0}: {1}
+Identificado pelo código impresso ({0}). Confira abaixo.
+Consultando o código de barras {0}…
+Câmera ao vivo (selos na prateleira)
+Toque nas palavras da foto para montar a busca (o resultado aparece em Buscar pelo nome, abaixo).
+Parecido pela capa
+Identificado pelo código {0} (exato)
+Reconhecido pela imagem da capa
+Identificado pelo código de barras {0}
+Aponte para as etiquetas ou lombadas. Toque num selo para abrir o jogo.
+Já tenho
+Procurado
+Comprado
+Não tenho
+Este celular não consegue rodar o reconhecimento pela capa.
+Nada novo para preparar.
+Pausado: sem Wi-Fi. Continue quando estiver no Wi-Fi.
+{0} capas preparadas ({1} sem imagem).
+Interrompido. O que já foi preparado continua valendo.
+O recorte automático não está disponível neste celular. Use Fotografar.
+Fotografar com recorte automático
+Reconhecimento pela capa
+Compara a foto com capas já conhecidas, no próprio celular. Ajuda quando a etiqueta não tem nome legível.
+{0} capas preparadas · {1}
+{0} de {1}
+Interromper
+Preparar com a minha coleção e listas
+Todos os jogos de um console
+(escolha)
+Cerca de {0} capas: baixa uns {1} e guarda uns {2}. Só no Wi-Fi.
+Preparar {0}
+Apagar o que foi preparado
