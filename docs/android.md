@@ -90,3 +90,35 @@ O Play Protect pode avisar que o app é desconhecido (ainda não está na Play S
    primeira versão, copie o SHA-1 da "chave de assinatura de apps" (Play Console → Integridade do app)
    e crie **mais um** cliente Android no Google Cloud com esse SHA-1. Peça ao Claude para gerar o
    formato `.aab` no workflow quando chegar nesse ponto.
+
+## Chave do TheGamesDB (capas) — passo a passo
+
+O TheGamesDB (https://thegamesdb.net) é um acervo comunitário de capas e dados de jogos, gratuito. Para usar a API é preciso
+pedir acesso; não há cobrança nem cartão. Ele dá duas chaves:
+
+| Chave | Para quê | Limite | Onde usar |
+| --- | --- | --- | --- |
+| **Pública** | Uso dentro de aplicativos | Por endereço de internet (IP): cada celular tem a sua cota mensal | **Esta vai no app** |
+| Privada | Montar uma cópia dos dados num servidor | 6.000 pedidos no total, compartilhados | **Nunca** colocar no app nem no GitHub |
+
+1. Crie uma conta no fórum: https://forums.thegamesdb.net → **Register**. Confirme o e-mail.
+2. Entre no fórum e abra a seção de pedidos de chave da API (o link aparece em https://api.thegamesdb.net/key.php
+   depois de entrar: "request access to the api via the forum"). Clique em **New Topic** e cole o texto abaixo.
+3. Espere a aprovação (é manual; pode levar alguns dias). Você recebe aviso no fórum.
+4. Com a conta aprovada, abra https://api.thegamesdb.net/key.php (logado) e copie a **Public API Key**.
+5. No GitHub, em https://github.com/VPRODC83/gamecatalog-app/settings/secrets/actions → **New repository secret**:
+   Name `TGDB_API_KEY`, Secret = a chave pública. A próxima versão do app já sai usando o TheGamesDB.
+
+Texto sugerido para o pedido (em inglês):
+
+> **Subject:** API key request — Game Catalog (free, open-source Android collection manager)
+>
+> Hi! I'd like to request API access for **Game Catalog**, a free and open-source Android app for managing a personal
+> video game collection stored in the user's own Google Sheets spreadsheet (source: https://github.com/VPRODC83/gamecatalog-app,
+> site: https://vprodc83.github.io/). We would use the **public key** only, from the app, to look up **box art** for games
+> that our primary source (libretro-thumbnails) doesn't have — mostly modern consoles and Brazilian releases.
+> Usage is small: a lookup by name + platform and one images call per game without cover, cached on the device, so a
+> typical user makes at most a few hundred requests per month. No data is re-hosted or resold; images are shown with
+> credit to TheGamesDB. Non-commercial, no ads. Thank you!
+
+O app mostrará "Capas: libretro-thumbnails, TheGamesDB…" em Ajustes, como crédito.
