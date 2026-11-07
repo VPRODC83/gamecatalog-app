@@ -279,3 +279,42 @@ console {0} não está na lista da tabela; ajuste depois em Editar dados
 de {0}
 {0} (fora da lista)
 {0} jogo(s) incluído(s) em {1}.
+. Fotos de cartuchos e discos vêm do VGDB quando existem; as suas fotos continuam como estão.
+Adicionados por último
+Adicionados primeiro
+Aplicar a melhor sugestão em todos
+Buscando datas de lançamento: {0} de {1}
+Capa salva para todos que usam a planilha.
+Coluna ADICIONADO EM (data de entrada)
+Coluna ADICIONADO EM pronta. Os jogos novos já entram com a data.
+Console e nome
+Criar
+Criar coluna ADICIONADO EM
+Jogos sem capa
+Jogos sem capa ({0})
+Lançamento: mais antigos
+Lançamento: mais novos
+Nenhuma fonte tem capa para este nome. Tente Trocar capa na ficha do jogo (busca por outro nome ou foto sua).
+Nenhuma outra fonte tem capa para este nome.
+Nome (A–Z)
+Nome (Z–A)
+O app vai acrescentar uma coluna no fim de cada tabela abaixo. As linhas que já existem não são alteradas (a coluna fica vazia nelas).
+Ordenar por
+Para ordenar por "quando foi adicionado" com a data certa, o app pode criar a coluna ADICIONADO EM e preenchê-la em cada jogo novo.
+Procurando e salvando: {0} de {1}
+Procurando em todas as fontes…
+Procurar também na internet
+Se alguém incluir jogos direto no Google Sheets, preencha a data à mão nessa coluna.
+Sugestões
+Todos os jogos da coleção têm capa.
+Toque em Sugestões para ver capas de todas as fontes (libretro, Wikipédia, PriceCharting, VGDB, Tec Toy, TheGamesDB). A escolhida fica salva na planilha e vale para todos.
+a coluna {0} da aba {1} já tem dados
+adicionado em {0}
+lançamento {0}
+lançamento: sem data
+{0} capa(s) salvas na planilha; {1} continuam sem capa.
+{0}: a coluna já existe ({1}).
+{0}: nova coluna {1}, dentro da tabela {2}.
+{0}: nova coluna {1}.
+{0}: não será criada ({1}).
+Identificação feita no próprio aparelho (leitura da etiqueta) e pelo Google Lens. Capas: libretro-thumbnails, Wikipédia, PriceCharting, VGDB, Tec Toy e TheGamesDB. Valores: PriceCharting. Datas de lançamento: Wikidata.

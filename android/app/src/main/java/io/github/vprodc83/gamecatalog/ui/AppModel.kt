@@ -39,6 +39,7 @@ class AppModel(val ctx: Context, val auth: GoogleAuth) {
                 runCatching { (runCatching { ctx.assets.open("catalog.json") }.getOrNull() ?: ctx.assets.open("catalog.json.gz")).use { Catalog.load(it) } }
             }
             catalog = r.getOrNull()
+            resolver.vgdb = withContext(Dispatchers.IO) { runCatching { (runCatching { ctx.assets.open("vgdb.json") }.getOrNull() ?: ctx.assets.open("vgdb.json.gz")).use { io.github.vprodc83.gamecatalog.core.CoverSources.Vgdb.load(it) } }.getOrNull() }
             catalogError = r.exceptionOrNull()?.let { tr("Não consegui abrir o catálogo de jogos ({0}). A busca pela planilha continua funcionando.", it.message) }
         }
     }
@@ -87,21 +88,21 @@ class AppModel(val ctx: Context, val auth: GoogleAuth) {
     }
     fun photoDir(): File = File(ctx.filesDir, "fotos").apply { mkdirs() }
 
-    /** Capa a mostrar: foto sua > capa escolhida na planilha (CAPAS) > capa automática do libretro. */
+    /**
+     * Capa a mostrar: foto sua > capa escolhida na planilha (CAPAS) > capa automática (libretro e, sem ela,
+     * as outras fontes, procuradas em segundo plano). null = ainda sem capa (a tela mostra a capa provisória).
+     */
     fun coverFor(item: Item, tipo: String = "capa"): Any? {
+        @Suppress("UNUSED_VARIABLE") val v = resolver.version
         photo(item.chave, tipo)?.let { return it }
         repo.state.value.capas[item.chave]?.get(tipo)?.let { if (it.origem == "url") return it.valor }
-        if (tipo != "capa") return null
-        val c = catalog ?: return null
-        val key = item.chave + "|" + repo.platformOf(item.console)
-        if (autoCovers.containsKey(key)) return autoCovers[key]
-        val repoId = repo.platformOf(item.console)
-        val url = if (repoId.isEmpty()) null else c.search(item.nome, listOf(repoId), limit = 1, minScore = 0.8, regiao = item.regiao).firstOrNull()?.let { c.coverUrl(it.repo, it.nomeAcervo) }
-        autoCovers[key] = url
-        return url
+        resolver.cached(item, tipo)?.let { return it }
+        if (catalog == null) return null
+        resolver.request(item)
+        return null
     }
-    private val autoCovers = HashMap<String, String?>()
-    fun clearAutoCovers() { autoCovers.clear() }
+    fun clearAutoCovers() { resolver.clear() }
+    val resolver = CoverResolver(this)
 
     val covers = CoverUpdater(this)
     var showReview by mutableStateOf(false)

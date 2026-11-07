@@ -111,11 +111,13 @@ fun MappingScreen(m: AppModel, onSaved: () -> Unit) {
     var colTab by remember { mutableStateOf(prev?.colecao?.aba ?: tabs.firstOrNull { T.norm(it).matches("^(GAMES|COLECAO|JOGOS|COLLECTION).*".toRegex()) } ?: tabs.first()) }
     var cCons by remember(colTab) { mutableStateOf(guessCol(colTab, "^(CONSOLE|PLATAFORMA|SISTEMA|PLATFORM).*", false)) }
     var cNome by remember(colTab) { mutableStateOf(guessCol(colTab, "^(NOME|JOGO|TITULO|NAME|GAME).*", false).let { if (it == cCons) 1 else it }) }
-    var cReg by remember(colTab) { mutableStateOf(guessCol(colTab, "^(REGIAO|REGION|REG).*", true)) }
+    var cReg by remember(colTab) { mutableStateOf(guessCol(colTab, "^(REGIAO|REGION|REG|EUUSA).*", true)) }
+    var cAdd by remember(colTab) { mutableStateOf(guessCol(colTab, "^ADICIONADO.*", true)) }
     val wanted = remember { mutableStateListOf<Config.Procurado>().apply {
         addAll(prev?.procurados ?: tabs.filter { T.norm(it).matches("^(SFC|FC|ODYSSEY|PROCURADOS|WANTED|WISHLIST|DESEJOS)$".toRegex()) }.map { t ->
             Config.Procurado(t, guessCol(t, "^(NOME|JOGO|TITULO|NAME).*", false), guessCol(t, "^(STATUS|SITUACAO).*", true), guessCol(t, "^(CONSOLE|PLATAFORMA).*", true),
-                if (T.norm(t).matches("^(SFC|FC|NES|SNES|MD|MS|ODYSSEY|N64|PS[0-9]?)$".toRegex())) (if (T.norm(t) == "FC") "FAMICOM" else t.uppercase()) else "", guessCol(t, "^(OBS|INFO|NOTA).*", true))
+                if (T.norm(t).matches("^(SFC|FC|NES|SNES|MD|MS|ODYSSEY|N64|PS[0-9]?)$".toRegex())) (if (T.norm(t) == "FC") "FAMICOM" else t.uppercase()) else "", guessCol(t, "^(OBS|INFO|NOTA).*", true),
+                guessCol(t, "^ADICIONADO.*", true))
         })
     } }
     var buyTab by remember { mutableStateOf(prev?.compras ?: tabs.firstOrNull { T.norm(it).matches("^(BUYING|COMPRAS)$".toRegex()) } ?: "COMPRAS") }
@@ -128,6 +130,7 @@ fun MappingScreen(m: AppModel, onSaved: () -> Unit) {
         Picker(tr("Coluna do console"), cCons, cols(colTab, false)) { cCons = it }
         Picker(tr("Coluna do nome"), cNome, cols(colTab, false)) { cNome = it }
         Picker(tr("Coluna da região"), cReg, cols(colTab, true)) { cReg = it }
+        Picker(tr("Coluna ADICIONADO EM (data de entrada)"), cAdd, cols(colTab, true)) { cAdd = it }
         SectionTitle(tr("Procurados (opcional)"))
         wanted.forEachIndexed { i, w ->
             Card { Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -135,6 +138,7 @@ fun MappingScreen(m: AppModel, onSaved: () -> Unit) {
                 Picker(tr("Coluna do nome"), w.nome, cols(w.aba, false)) { wanted[i] = w.copy(nome = it) }
                 Picker(tr("Coluna do status (onde marcar COMPRADO)"), w.status, cols(w.aba, true)) { wanted[i] = w.copy(status = it) }
                 Picker(tr("Coluna do console"), w.consoleCol, cols(w.aba, true)) { wanted[i] = w.copy(consoleCol = it) }
+                Picker(tr("Coluna ADICIONADO EM (data de entrada)"), w.adicionado, cols(w.aba, true)) { wanted[i] = w.copy(adicionado = it) }
                 OutlinedTextField(value = w.console, onValueChange = { wanted[i] = w.copy(console = it) }, label = { Text(tr("ou console fixo da aba (ex.: SFC)")) }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 TextButton(onClick = { wanted.removeAt(i) }) { Text(tr("Remover esta aba")) }
             } }
@@ -145,8 +149,8 @@ fun MappingScreen(m: AppModel, onSaved: () -> Unit) {
         Button(onClick = {
             if (cCons == cNome) { err = tr("Console e nome precisam ser colunas diferentes."); return@Button }
             val heads = d.second[colTab] ?: emptyList()
-            val last = maxOf(heads.indexOfLast { it.isNotBlank() }, cCons, cNome, cReg)
-            val cfg = Config.build(Config.Colecao(colTab, cCons, cNome, cReg, last), wanted.toList(), buyTab.trim().ifBlank { "COMPRAS" }, prev)
+            val last = maxOf(heads.indexOfLast { it.isNotBlank() }, cCons, cNome, cReg, cAdd)
+            val cfg = Config.build(Config.Colecao(colTab, cCons, cNome, cReg, last, cAdd), wanted.toList(), buyTab.trim().ifBlank { "COMPRAS" }, prev)
             scope.launch { m.busy = true; try { m.repo.saveConfig(cfg); m.repo.refresh(); onSaved() } catch (e: Exception) { err = Repo.friendly(e) } finally { m.busy = false } }
         }, enabled = !m.busy, modifier = Modifier.fillMaxWidth()) { Text(tr("Salvar e começar")) }
         err?.let { Text(it, color = MaterialTheme.colorScheme.error) }

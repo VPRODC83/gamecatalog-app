@@ -10,6 +10,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -136,6 +137,7 @@ fun SettingsScreen(m: AppModel, onChangeSheet: () -> Unit, onMapping: () -> Unit
                     }) { Text(tr("Enviar link para alguém")) }
                 }
                 Hint(tr("Para outra pessoa usar a mesma coleção: compartilhe a planilha com o e-mail dela como Editor (no Google Sheets) e mande o link."))
+                if ((st.config?.colecao?.adicionado ?: -1) < 0) AddedColumnBox(m)
                 Chips {
                     TextButton(onClick = onMapping) { Text(tr("Abas e colunas")) }
                     TextButton(onClick = onChangeSheet) { Text(tr("Usar outra planilha")) }
@@ -183,7 +185,7 @@ fun SettingsScreen(m: AppModel, onChangeSheet: () -> Unit, onMapping: () -> Unit
                     TextButton(onClick = { openUrl(ctx, "https://vprodc83.github.io/termos.html") }) { Text(tr("Termos")) }
                     TextButton(onClick = { scope.launch { m.auth.signOut(); m.loggedIn = false; onSignedOut() } }) { Text(tr("Sair da conta")) }
                 }
-                Hint(tr("Identificação feita no próprio aparelho (leitura da etiqueta) e pelo Google Lens. Capas: libretro-thumbnails. Valores: PriceCharting."))
+                Hint(tr("Identificação feita no próprio aparelho (leitura da etiqueta) e pelo Google Lens. Capas: libretro-thumbnails, Wikipédia, PriceCharting, VGDB, Tec Toy e TheGamesDB. Valores: PriceCharting. Datas de lançamento: Wikidata."))
             }
         }
     }
@@ -213,4 +215,39 @@ private fun StorageBox(m: AppModel) {
         TextButton(onClick = { scope.launch { withContext(Dispatchers.IO) { coil3.SingletonImageLoader.get(ctx).let { it.diskCache?.clear(); it.memoryCache?.clear() } }; m.clearAutoCovers(); m.photosVersion++; tick++ } }) { Text(tr("Apagar capas baixadas")) }
     }
     Hint(tr("Suas fotos só são apagadas quando você as remove no jogo. Capas apagadas são baixadas de novo quando aparecem na tela."))
+}
+
+/** Melhoria 12: cria a coluna ADICIONADO EM nas tabelas da coleção e dos procurados, depois de mostrar o plano. */
+@Composable
+private fun AddedColumnBox(m: AppModel) {
+    var open by remember { mutableStateOf(false) }
+    var plan by remember { mutableStateOf<List<io.github.vprodc83.gamecatalog.data.Repo.AddedPlan>?>(null) }
+    var err by remember { mutableStateOf<String?>(null) }
+    Hint(tr("Para ordenar por \"quando foi adicionado\" com a data certa, o app pode criar a coluna ADICIONADO EM e preenchê-la em cada jogo novo."))
+    OutlinedButton(onClick = { open = true; plan = null; err = null }) { Text(tr("Criar coluna ADICIONADO EM")) }
+    if (open) {
+        androidx.compose.runtime.LaunchedEffect(Unit) { runCatching { m.repo.planAddedColumn() }.onSuccess { plan = it }.onFailure { err = Repo.friendly(it) } }
+        val p = plan
+        ConfirmDialog(tr("Criar coluna ADICIONADO EM"), tr("Criar"), { open = false }, enabled = p != null && p.any { it.problema == null && it.existente < 0 }, onConfirm = {
+            open = false; val pl = p ?: return@ConfirmDialog
+            m.run { m.repo.createAddedColumn(pl); m.repo.refresh(); m.message = tr("Coluna ADICIONADO EM pronta. Os jogos novos já entram com a data.") }
+        }) {
+            when {
+                err != null -> Text(err!!, color = MaterialTheme.colorScheme.error)
+                p == null -> CircularProgressIndicator()
+                else -> {
+                    Text(tr("O app vai acrescentar uma coluna no fim de cada tabela abaixo. As linhas que já existem não são alteradas (a coluna fica vazia nelas)."))
+                    p.forEach { a ->
+                        Text(when {
+                            a.existente >= 0 -> tr("{0}: a coluna já existe ({1}).", cn(a.aba), Sheets.col(a.existente))
+                            a.problema != null -> tr("{0}: não será criada ({1}).", cn(a.aba), a.problema)
+                            a.tabela != null -> tr("{0}: nova coluna {1}, dentro da tabela {2}.", cn(a.aba), Sheets.col(a.nova), a.tabela.name)
+                            else -> tr("{0}: nova coluna {1}.", cn(a.aba), Sheets.col(a.nova))
+                        }, color = if (a.problema != null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface)
+                    }
+                    Hint(tr("Se alguém incluir jogos direto no Google Sheets, preencha a data à mão nessa coluna."))
+                }
+            }
+        }
+    }
 }

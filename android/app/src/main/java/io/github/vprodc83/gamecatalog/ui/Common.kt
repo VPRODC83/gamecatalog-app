@@ -32,6 +32,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
@@ -80,17 +81,46 @@ fun <T> Picker(label: String, value: T, options: List<Pair<T, String>>, modifier
     }
 }
 
-/** Capa (ou foto) com o nome do console quando não há imagem. */
+/**
+ * Capa (ou foto). Sem imagem, desenha uma capa provisória (melhoria 20): faixa com o console na cor dele
+ * e o nome do jogo no meio, para nenhuma lista ficar com quadros em branco. [title] = nome do jogo.
+ */
 @Composable
-fun Cover(model: Any?, fallback: String, modifier: Modifier = Modifier) {
+fun Cover(model: Any?, fallback: String, modifier: Modifier = Modifier, title: String? = null) {
     Box(modifier.aspectRatio(3f / 4f).clip(RoundedCornerShape(6.dp)).background(MaterialTheme.colorScheme.surface)
         .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(6.dp)), contentAlignment = Alignment.Center) {
-        // o nome do console diminui até caber inteiro (ex.: SUPER FAMICOM numa miniatura)
-        androidx.compose.foundation.text.BasicText(fallback, modifier = Modifier.padding(6.dp),
-            style = MaterialTheme.typography.labelSmall.copy(textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant),
-            softWrap = true, maxLines = fallback.split(" ").size.coerceIn(1, 3),
-            autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 6.sp, maxFontSize = 11.sp, stepSize = 0.5.sp))
+        if (title.isNullOrBlank()) {
+            // o nome do console diminui até caber inteiro (ex.: SUPER FAMICOM numa miniatura)
+            androidx.compose.foundation.text.BasicText(fallback, modifier = Modifier.padding(6.dp),
+                style = MaterialTheme.typography.labelSmall.copy(textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant),
+                softWrap = true, maxLines = fallback.split(" ").size.coerceIn(1, 3),
+                autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 6.sp, maxFontSize = 11.sp, stepSize = 0.5.sp))
+        } else PlaceholderCover(fallback, title)
         if (model != null && model != "") AsyncImage(model = model, contentDescription = null, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize())
+    }
+}
+
+/** Cor de cada console (mesma cor sempre). */
+fun consoleColor(console: String): Color {
+    val palette = listOf(0xFF4A3FB0, 0xFFB3261E, 0xFF1D5FA8, 0xFF1F7A4D, 0xFF9A6A00, 0xFF6D2E8C, 0xFF00796B, 0xFFC2185B, 0xFF37474F, 0xFF5D4037)
+    val n = io.github.vprodc83.gamecatalog.core.Text.norm(console)
+    val fixed = mapOf("SNES" to 0, "SFC" to 0, "NES" to 1, "FAMICOM" to 1, "MD" to 8, "MS" to 2, "N64" to 3, "PS1" to 8, "PS2" to 2, "PS3" to 8, "PS4" to 2, "PS5" to 2,
+        "XBOX" to 3, "X360" to 3, "XONE" to 3, "NSW" to 1, "NSW2" to 1, "GAMEBOY" to 4, "ODYSSEY" to 9, "SATURN" to 8, "DC" to 6)
+    return Color(palette[fixed[n] ?: (n.hashCode() and 0x7fffffff) % palette.size])
+}
+
+@Composable
+private fun PlaceholderCover(console: String, title: String) {
+    val c = consoleColor(console)
+    Column(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(c.copy(alpha = .85f), c)))) {
+        Box(Modifier.fillMaxWidth().background(Color.Black.copy(alpha = .28f)).padding(horizontal = 4.dp, vertical = 3.dp), contentAlignment = Alignment.Center) {
+            androidx.compose.foundation.text.BasicText(console, style = MaterialTheme.typography.labelSmall.copy(color = Color.White, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center),
+                maxLines = 1, softWrap = false, autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 4.sp, maxFontSize = 10.sp, stepSize = 0.5.sp))
+        }
+        Box(Modifier.fillMaxWidth().weight(1f).padding(5.dp), contentAlignment = Alignment.Center) {
+            androidx.compose.foundation.text.BasicText(title, style = MaterialTheme.typography.titleSmall.copy(color = Color.White, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center),
+                maxLines = 5, autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 6.sp, maxFontSize = 16.sp, stepSize = 0.5.sp))
+        }
     }
 }
 

@@ -235,7 +235,7 @@ fun CandCard(m: AppModel, c: Cand, onOpen: (Item) -> Unit, onReplace: (Cand) -> 
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Cover(cover, cn(c.console).ifEmpty { c.plataforma }, Modifier.width(84.dp))
+                Cover(cover, cn(c.console).ifEmpty { c.plataforma }, Modifier.width(84.dp), title = c.titulo)
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(c.titulo, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     Hint(listOf(cn(c.console), c.plataforma).filter { it.isNotBlank() }.distinct().joinToString(" · ").ifEmpty { tr("Console não identificado") })

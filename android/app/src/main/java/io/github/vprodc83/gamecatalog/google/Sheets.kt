@@ -103,6 +103,24 @@ class Sheets(private val token: suspend () -> String) {
             JSONObject().put("sheetId", t.sheetId).put("tableId", t.tableId).put("rows", rows).put("fields", "userEnteredValue")))))
     }
 
+    /**
+     * Acrescenta uma coluna com o título [header] na coluna [col] (0 = A) e, se houver tabela, amplia a tabela
+     * para incluí-la — tudo num único pedido (ou tudo acontece, ou nada).
+     */
+    suspend fun addColumnToTable(id: String, sheetId: Int, col: Int, header: String, t: Table?) {
+        val grid = call("GET", "$base$id?fields=sheets(properties(sheetId,gridProperties(columnCount)))").optJSONArray("sheets") ?: JSONArray()
+        val cols = (0 until grid.length()).map { grid.getJSONObject(it).getJSONObject("properties") }.firstOrNull { it.optInt("sheetId") == sheetId }
+            ?.optJSONObject("gridProperties")?.optInt("columnCount") ?: 26
+        val reqs = JSONArray()
+        if (col >= cols) reqs.put(JSONObject().put("appendDimension", JSONObject().put("sheetId", sheetId).put("dimension", "COLUMNS").put("length", col - cols + 1)))
+        reqs.put(JSONObject().put("updateCells", JSONObject().put("start", JSONObject().put("sheetId", sheetId).put("rowIndex", 0).put("columnIndex", col))
+            .put("rows", JSONArray().put(JSONObject().put("values", JSONArray().put(JSONObject().put("userEnteredValue", JSONObject().put("stringValue", header)))))).put("fields", "userEnteredValue")))
+        if (t != null) reqs.put(JSONObject().put("updateTable", JSONObject().put("table", JSONObject().put("tableId", t.tableId)
+            .put("range", JSONObject().put("sheetId", sheetId).put("startRowIndex", t.startRow).put("endRowIndex", t.endRow).put("startColumnIndex", t.startCol).put("endColumnIndex", col + 1)))
+            .put("fields", "range")))
+        call("POST", "$base$id:batchUpdate", JSONObject().put("requests", reqs))
+    }
+
     /** Número interno da aba (usado para apagar linhas). */
     suspend fun tabId(id: String, title: String): Int {
         val arr = call("GET", "$base$id?fields=sheets.properties(sheetId,title)").optJSONArray("sheets") ?: JSONArray()

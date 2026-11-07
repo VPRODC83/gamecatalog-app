@@ -19,6 +19,8 @@ android {
         targetSdk = 36
         versionCode = appVersionCode
         versionName = appVersionName
+        // chave pública do TheGamesDB (segredo TGDB_API_KEY no GitHub); vazia = fonte desligada
+        buildConfigField("String", "TGDB_KEY", "\"${(System.getenv("TGDB_API_KEY") ?: "").replace("\"", "")}\"")
     }
 
     signingConfigs {

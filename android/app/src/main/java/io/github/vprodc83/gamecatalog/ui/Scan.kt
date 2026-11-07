@@ -56,9 +56,11 @@ fun CollectionTools(m: AppModel) {
         OutlinedButton(onClick = { dialog = "novo" }, modifier = Modifier.weight(1f)) { Text(tr("Novo jogo")) }
         OutlinedButton(onClick = { dialog = "varrer" }, modifier = Modifier.weight(1f)) { Text(tr("Faltam em {0}?", m.repo.state.value.config?.colecao?.aba ?: "GAMES")) }
     }
+    OutlinedButton(onClick = { dialog = "semcapa" }, modifier = Modifier.fillMaxWidth()) { Text(tr("Jogos sem capa")) }
     when (dialog) {
         "novo" -> AddCollectionDialog(m, "", "") { dialog = null }
         "varrer" -> ScanDialog(m) { dialog = null }
+        "semcapa" -> MissingCoversDialog(m) { dialog = null }
     }
 }
 

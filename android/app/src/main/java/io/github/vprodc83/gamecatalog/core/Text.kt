@@ -21,6 +21,39 @@ object Text {
         .replace(nonAlnum, " ")
         .trim()
 
+    private val noiseRe = "\\*[^*]*\\*|\\[[^\\]]*]|\\([^)]*\\)".toRegex()
+    private val noiseWords = listOf("LACRADO", "LACRADA", "SEALED", "SEMINOVO", "USADO", "REPRO", "REPRODUCAO", "COMPLETO", "CIB", "LOOSE",
+        "SO O CARTUCHO", "SO O DISCO", "SEM CAIXA", "SEM MANUAL", "GREATEST HITS", "PLATINUM", "PLAYERS CHOICE", "PLAYER S CHOICE",
+        "NINTENDO SELECTS", "ESSENTIALS", "CLASSICS", "BEST SELLER", "THE BEST", "PS2 CLASSICS", "XBOX CLASSICS")
+    private val editions = listOf("EDICAO DEFINITIVA" to "DEFINITIVE EDITION", "EDICAO COMPLETA" to "COMPLETE EDITION",
+        "EDICAO DE JOGO DO ANO" to "GAME OF THE YEAR EDITION", "EDICAO JOGO DO ANO" to "GAME OF THE YEAR EDITION",
+        "EDICAO DE COLECIONADOR" to "COLLECTORS EDITION", "EDICAO DO COLECIONADOR" to "COLLECTORS EDITION",
+        "EDICAO ESPECIAL" to "SPECIAL EDITION", "EDICAO LIMITADA" to "LIMITED EDITION", "EDICAO DE LUXO" to "DELUXE EDITION",
+        "EDICAO DELUXE" to "DELUXE EDITION", "EDICAO GOTY" to "GOTY EDITION", "COLETANEA" to "COLLECTION")
+
+    /**
+     * Versões do nome para procurar capas, da mais fiel à mais limpa: tira anotações da planilha
+     * ("*LACRADO*", parênteses, "PLATINUM"…), traduz "EDIÇÃO DEFINITIVA" → "DEFINITIVE EDITION" e,
+     * por fim, tenta sem a edição.
+     */
+    fun nameVariants(s: String): List<String> {
+        val base = stripAccents(s).uppercase().replace(noiseRe, " ").replace("[^A-Z0-9:&' -]".toRegex(), " ")
+        var clean = " $base "
+        noiseWords.forEach { w -> clean = clean.replace(" $w ", " ") }
+        clean = clean.replace("\\s+".toRegex(), " ").trim()
+        var trans = clean; editions.forEach { (pt, en) -> trans = trans.replace(pt, en) }
+        val noEd = trans.replace("\\b(DEFINITIVE|COMPLETE|GAME OF THE YEAR|GOTY|COLLECTORS|SPECIAL|LIMITED|DELUXE) EDITION\\b".toRegex(), "").replace("\\s+".toRegex(), " ").trim()
+        return listOf(s.trim(), clean, trans, noEd).filter { it.length >= 2 }.distinctBy { norm(it) }
+    }
+
+    /** Desfaz entidades HTML simples (&amp; &quot; &#39; &#233;…). */
+    fun unescapeHtml(s: String): String = "&(#x?[0-9a-fA-F]+|amp|quot|apos|lt|gt|nbsp);".toRegex().replace(s) { m ->
+        when (val e = m.groupValues[1]) {
+            "amp" -> "&"; "quot" -> "\""; "apos" -> "'"; "lt" -> "<"; "gt" -> ">"; "nbsp" -> " "
+            else -> runCatching { (if (e.startsWith("#x")) e.drop(2).toInt(16) else e.drop(1).toInt()).toChar().toString() }.getOrDefault(m.value)
+        }
+    }
+
     /** Semelhança por pares de letras (coeficiente de Dice). */
     fun dice(a: String, b: String): Double {
         if (a.length < 2 || b.length < 2) return if (a == b) 1.0 else 0.0

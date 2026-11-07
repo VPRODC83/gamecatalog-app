@@ -96,6 +96,7 @@ jobs:
         env:
           TAG: ${{ steps.v.outputs.tag }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          TGDB_API_KEY: ${{ secrets.TGDB_API_KEY }}   # chave pública do TheGamesDB (capas); vazia = fonte desligada
         run: |
           set -euo pipefail
           if [ -z "${ANDROID_KEY_PASSWORD:-}" ]; then

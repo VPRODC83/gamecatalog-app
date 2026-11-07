@@ -35,7 +35,7 @@ object Prices {
         )
     }
 
-    private fun get(url: String): Pair<String, String> {
+    internal fun get(url: String): Pair<String, String> {
         http.newCall(Request.Builder().url(url).header("User-Agent", UA).header("Accept-Language", "en-US,en;q=0.8").build()).execute().use { r ->
             if (!r.isSuccessful) throw java.io.IOException("HTTP ${r.code}")
             return r.request.url.toString() to (r.body?.string() ?: "")
@@ -57,18 +57,29 @@ object Prices {
 
     /** Valores mundiais do jogo. [plataforma] ajuda a escolher a versão certa (ex.: super-nintendo vs super-famicom). */
     fun world(titulo: String, consoleRepo: String): World? {
+        val (u, html, nome) = productPage(titulo, consoleRepo) ?: return null
+        val (l, c, n) = parseProduct(html)
+        return World(l, c, n, u, nome)
+    }
+
+    /** Página de produto do PriceCharting para o jogo: (endereço, html, nome do produto). */
+    fun productPage(titulo: String, consoleRepo: String): Triple<String, String, String>? {
         val (finalUrl, html) = get("https://www.pricecharting.com/search-products?type=prices&q=${enc(titulo)}")
-        if (finalUrl.contains("/game/")) { val (l, c, n) = parseProduct(html); return World(l, c, n, finalUrl, titulo) }
+        if (finalUrl.contains("/game/")) return Triple(finalUrl, html, titulo)
         val hint = pcConsole(consoleRepo)
         val cands = parseSearch(html)
         val pick = cands.firstOrNull { (u, c) -> hint.any { c == it } && Text.score(titulo, u.substringAfterLast('/').replace('-', ' ')) >= 0.7 }
-            ?: cands.firstOrNull { (u, _) -> Text.score(titulo, u.substringAfterLast('/').replace('-', ' ')) >= 0.8 } ?: return null
+            ?: (if (hint.isEmpty()) cands.firstOrNull { (u, _) -> Text.score(titulo, u.substringAfterLast('/').replace('-', ' ')) >= 0.8 } else null) ?: return null
         val (u2, h2) = get(pick.first)
-        val (l, c, n) = parseProduct(h2)
-        return World(l, c, n, u2, pick.first.substringAfterLast('/').replace('-', ' '))
+        return Triple(u2, h2, pick.first.substringAfterLast('/').replace('-', ' '))
     }
 
-    private fun pcConsole(repo: String): List<String> = when (repo) {
+    /** Foto principal do produto na página do PriceCharting (a maior disponível). */
+    fun parseImage(html: String): String? =
+        "https://storage\\.googleapis\\.com/images\\.pricecharting\\.com/[A-Za-z0-9]+/1600\\.jpg".toRegex().find(html)?.value
+            ?: "https://storage\\.googleapis\\.com/images\\.pricecharting\\.com/[A-Za-z0-9]+/240\\.jpg".toRegex().find(html)?.value
+
+    internal fun pcConsole(repo: String): List<String> = when (repo) {
         Platforms.SNES -> listOf("super-nintendo", "super-famicom", "pal-super-nintendo")
         Platforms.NES -> listOf("nes", "famicom", "pal-nes")
         Platforms.MD -> listOf("sega-genesis", "sega-mega-drive", "pal-sega-mega-drive")
@@ -84,6 +95,11 @@ object Prices {
         "Nintendo_-_Nintendo_3DS" -> listOf("nintendo-3ds"); "Sega_-_Saturn" -> listOf("sega-saturn"); "Sega_-_Dreamcast" -> listOf("sega-dreamcast")
         "Sega_-_Game_Gear" -> listOf("sega-game-gear"); "Sega_-_Mega-CD_-_Sega_CD" -> listOf("sega-cd"); "Microsoft_-_Xbox" -> listOf("xbox"); "Microsoft_-_Xbox_360" -> listOf("xbox-360")
         "Sony_-_PlayStation_Portable" -> listOf("psp"); "SNK_-_Neo_Geo" -> listOf("neo-geo-mvs", "neo-geo-aes"); "Magnavox_-_Odyssey2" -> listOf("magnavox-odyssey-2")
+        "Microsoft_-_MSX" -> listOf("msx"); "NEC_-_PC_Engine_-_TurboGrafx_16" -> listOf("turbografx-16", "pc-engine")
+        // consoles atuais (sem acervo no libretro): o código da planilha vem em "@CÓDIGO"
+        "@XONE" -> listOf("xbox-one", "pal-xbox-one"); "@XSX" -> listOf("xbox-series-x"); "@PS5" -> listOf("playstation-5", "pal-playstation-5")
+        "@NSW" -> listOf("nintendo-switch", "pal-nintendo-switch", "jp-nintendo-switch"); "@NSW2" -> listOf("nintendo-switch-2")
+        "@PSVITA" -> listOf("playstation-vita")
         else -> emptyList()
     }
 

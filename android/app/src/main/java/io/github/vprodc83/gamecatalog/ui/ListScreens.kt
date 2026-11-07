@@ -62,14 +62,21 @@ fun ListScreen(m: AppModel, lista: Lista, onOpen: (Item) -> Unit) {
     var console by remember(lista) { mutableStateOf("") }
     val all = remember(st, lista) { st.of(lista) }
     val consoles = remember(all) { all.map { it.console.uppercase() }.filter { it.isNotBlank() }.distinct().sorted() }
-    val shown = remember(all, q, console) {
-        all.filter { (console.isEmpty() || it.console.equals(console, true)) && (q.isBlank() || T.score(q, it.nome) >= 0.6 || T.norm(it.nome).contains(T.norm(q))) }
-            .let { l -> if (q.isBlank()) l.sortedWith(compareBy({ T.norm(it.console) }, { T.norm(it.nome) })) else l.sortedByDescending { T.score(q, it.nome) } }
+    val ctx = LocalContext.current
+    val prefs = remember { ctx.getSharedPreferences("interface", android.content.Context.MODE_PRIVATE) }
+    var ordem by remember(lista) { mutableStateOf(runCatching { prefs.getString("ordem_" + lista.name, "recentes") }.getOrNull() ?: "recentes") }
+    @Suppress("UNUSED_VARIABLE") val rv = m.resolver.version
+    if (ordem.startsWith("lanc")) androidx.compose.runtime.LaunchedEffect(lista, ordem, all.size) { m.resolver.fetchDates(all) }
+    val shown = remember(all, q, console, ordem, rv) {
+        val f = all.filter { (console.isEmpty() || it.console.equals(console, true)) && (q.isBlank() || T.score(q, it.nome) >= 0.6 || T.norm(it.nome).contains(T.norm(q))) }
+        if (q.isNotBlank()) f.sortedByDescending { T.score(q, it.nome) } else sortItems(m, f, ordem)
     }
     LazyColumn(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         item {
             Column(Modifier.padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(value = q, onValueChange = { q = it }, label = { Text(tr("Procurar em {0}", tr(lista.titulo).lowercase())) }, singleLine = true, leadingIcon = { Icon(Icons.Default.Search, null) }, modifier = Modifier.fillMaxWidth())
+                Picker(tr("Ordenar por"), ordem, sortOptions(lista)) { ordem = it; runCatching { prefs.edit().putString("ordem_" + lista.name, it).apply() } }
+                if (ordem.startsWith("lanc") && m.resolver.datesRunning) Hint(tr("Buscando datas de lançamento: {0} de {1}", m.resolver.datesDone, m.resolver.datesTotal))
                 if (consoles.size > 1) Picker(tr("Console"), console, listOf("" to tr("Todos ({0})", all.size)) + consoles.map { c -> c to "${cn(c)} (${all.count { it.console.equals(c, true) }})" }) { console = it }
                 if (lista == Lista.COLECAO && st.config != null) CollectionTools(m)
                 if (lista == Lista.COLECAO && all.isNotEmpty()) CoverUpdateCard(m)
@@ -86,20 +93,57 @@ fun ListScreen(m: AppModel, lista: Lista, onOpen: (Item) -> Unit) {
                 Lista.COMPRADO -> tr("Nenhuma compra aguardando chegada. Quando comprar um jogo, toque em Comprei.")
             })
         }
-        items(shown, key = { it.id }) { i -> ItemRow(m, i) { onOpen(i) } }
+        items(shown, key = { it.id }) { i -> ItemRow(m, i, extra = when {
+            ordem.startsWith("lanc") -> m.resolver.date(i)?.let { tr("lançamento {0}", fmtDate(it)) } ?: if (m.resolver.dateTried(i)) tr("lançamento: sem data") else null
+            ordem == "recentes" || ordem == "antigos" -> addedDate(m, i)?.let { tr("adicionado em {0}", it) }
+            else -> null
+        }) { onOpen(i) } }
         item { Spacer8() }
     }
 }
 
+/** Opções de ordenação da lista (melhoria 12). */
+fun sortOptions(lista: Lista): List<Pair<String, String>> = listOf(
+    "recentes" to tr("Adicionados por último"), "antigos" to tr("Adicionados primeiro"), "az" to tr("Nome (A–Z)"), "za" to tr("Nome (Z–A)"),
+    "lanc_antigo" to tr("Lançamento: mais antigos"), "lanc_novo" to tr("Lançamento: mais novos"), "console" to tr("Console e nome"))
+
+/** Data em que entrou na lista: coluna ADICIONADO EM (coleção e procurados) ou DATA (compras). */
+fun addedDate(m: AppModel, i: Item): String? {
+    val cfg = m.repo.state.value.config ?: return null
+    val col = when (i.lista) { Lista.COLECAO -> cfg.colecao.adicionado; Lista.PROCURADO -> cfg.procurados.getOrNull(i.wi)?.adicionado ?: -1; Lista.COMPRADO -> return i.data.ifBlank { null } }
+    return if (col >= 0) i.raw.getOrNull(col)?.ifBlank { null } else null
+}
+
+/** "dd/MM/aaaa" → número aaaammdd para ordenar (null se vazio ou ilegível). */
+fun dateKey(s: String?): Int? {
+    val m = "(\\d{1,2})/(\\d{1,2})/(\\d{4})".toRegex().find(s ?: return null) ?: return null
+    return m.groupValues[3].toInt() * 10000 + m.groupValues[2].toInt() * 100 + m.groupValues[1].toInt()
+}
+
+/** "AAAA-MM-DD" do Wikidata → "dd/MM/aaaa" (ou "MM/aaaa", "aaaa"). */
+fun fmtDate(s: String): String = s.split('-').reversed().joinToString("/")
+
+fun sortItems(m: AppModel, l: List<Item>, ordem: String): List<Item> = when (ordem) {
+    "az" -> l.sortedBy { T.norm(it.nome) }
+    "za" -> l.sortedByDescending { T.norm(it.nome) }
+    "console" -> l.sortedWith(compareBy({ T.norm(it.console) }, { T.norm(it.nome) }))
+    "antigos" -> l.sortedWith(compareBy<Item>({ dateKey(addedDate(m, it)) ?: 0 }, { it.linha }))
+    "lanc_antigo" -> l.sortedWith(compareBy<Item>({ m.resolver.date(it) == null }, { m.resolver.date(it) ?: "" }, { T.norm(it.nome) }))
+    "lanc_novo" -> l.sortedWith(compareBy<Item>({ m.resolver.date(it) == null }).thenByDescending { m.resolver.date(it) ?: "" }.thenBy { T.norm(it.nome) })
+    // linhas com data primeiro (mais novas no topo); as antigas, sem data, pela posição na tabela (de baixo para cima)
+    else -> l.sortedWith(compareByDescending<Item> { dateKey(addedDate(m, it)) ?: 0 }.thenByDescending { it.linha })
+}
+
 @Composable
-fun ItemRow(m: AppModel, i: Item, onClick: () -> Unit) {
+fun ItemRow(m: AppModel, i: Item, extra: String? = null, onClick: () -> Unit) {
     Card(Modifier.fillMaxWidth().clickable(onClick = onClick)) {
         Row(Modifier.padding(10.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Cover(m.coverFor(i), cn(i.console), Modifier.width(52.dp))
+            Cover(m.coverFor(i), cn(i.console), Modifier.width(52.dp), title = i.nome)
             Column(Modifier.weight(1f)) {
                 Text(i.nome, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Hint(listOf(cn(i.console), i.regiao, if (i.lista == Lista.PROCURADO) cn(i.aba) else "", if (i.lista == Lista.COMPRADO) tr("comprado {0}", i.data) else "").filter { it.isNotBlank() }.joinToString(" · "))
                 if (i.lista == Lista.PROCURADO && i.info.isNotBlank()) Hint(i.info)
+                extra?.let { Hint(it) }
             }
         }
     }
@@ -119,7 +163,7 @@ fun DetailScreen(m: AppModel, item0: Item, onBack: () -> Unit) {
         item { TextButton(onClick = onBack) { Text(tr("‹ Voltar")) } }
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) { val cv = m.coverFor(item, "capa"); Cover(cv, cn(item.console), Modifier.fillMaxWidth().clickable(enabled = cv != null) { zoom = cv }); TextButton(onClick = { dialog = "capa" }) { Text(tr("Trocar capa")) } }
+                Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) { val cv = m.coverFor(item, "capa"); Cover(cv, cn(item.console), Modifier.fillMaxWidth().clickable(enabled = cv != null) { zoom = cv }, title = item.nome); TextButton(onClick = { dialog = "capa" }) { Text(tr("Trocar capa")) } }
                 Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) { val md = m.coverFor(item, "midia"); Cover(md, tr("Foto do cartucho/disco"), Modifier.fillMaxWidth().clickable(enabled = md != null) { zoom = md }); TextButton(onClick = { dialog = "midia" }) { Text(tr("Foto da mídia")) } }
             }
         }
@@ -207,6 +251,20 @@ fun CoverDialog(m: AppModel, item: Item, tipo: String, onClose: () -> Unit) {
                         }) { Cover(url, "", Modifier.fillMaxWidth()); Text(nome, style = MaterialTheme.typography.labelSmall, maxLines = 2, overflow = TextOverflow.Ellipsis) }
                     }
                     repeat(3 - row.size) { Column(Modifier.weight(1f)) {} }
+                }
+            }
+            // outras fontes: Wikipédia, PriceCharting, VGDB, Tec Toy, TheGamesDB (melhoria 18)
+            var more by remember(q) { mutableStateOf<List<io.github.vprodc83.gamecatalog.core.CoverSources.Hit>?>(null) }
+            var asked by remember(q) { mutableStateOf(false) }
+            if (!asked) TextButton(onClick = { asked = true }) { Text(tr("Procurar também na internet")) }
+            else {
+                androidx.compose.runtime.LaunchedEffect(q) { more = m.resolver.suggestions(item.copy(nome = q)).filter { it.fonte != "libretro" } }
+                val mm = more
+                if (mm == null) Hint(tr("Procurando em todas as fontes…"))
+                else if (mm.none { it.tipo == "capa" }) Hint(tr("Nenhuma outra fonte tem capa para este nome."))
+                else SuggestionGrid(mm, item.console) { h ->
+                    onClose(); m.photo(item.chave, "capa")?.let { it.delete(); m.setPhoto(item.chave, "capa", null) }
+                    m.run { m.repo.setCapa(item.chave, "capa", h.url, h.fonte + ": " + h.titulo); m.message = tr("Capa trocada para todos que usam a planilha.") }
                 }
             }
             HorizontalDivider()

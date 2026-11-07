@@ -125,6 +125,32 @@ class CoreTest {
         assertEquals("NEOGEO", io.github.vprodc83.gamecatalog.data.Repo.snapTo("NEOGEO", con))
     }
 
+    @Test fun nameVariantsCleanSheetNotes() {
+        val v = Text.nameVariants("MICROMACHINES WORLD SERIES *LACRADO*")
+        assertTrue(v.contains("MICROMACHINES WORLD SERIES"))
+        val k = Text.nameVariants("KILLER INSTINCT EDIÇÃO DEFINITIVA")
+        assertTrue(k.contains("KILLER INSTINCT DEFINITIVE EDITION")); assertTrue(k.contains("KILLER INSTINCT"))
+        assertEquals("Tom & Jerry", Text.unescapeHtml("Tom &amp; Jerry"))
+    }
+
+    @Test fun libretroFindsCleanedNames() {
+        // nome com anotação da planilha e erro de digitação ainda acha a capa
+        val snes = Platforms.repoOf("SNES")
+        val hit = Text.nameVariants("SUPER MARIO WORL *LACRADO*").firstNotNullOfOrNull { cat.search(it, listOf(snes), limit = 1, minScore = 0.78).firstOrNull() }
+        assertEquals("Super Mario World", hit?.tituloLimpo)
+    }
+
+    @Test fun priceChartingImage() {
+        val html = """<img src='https://storage.googleapis.com/images.pricecharting.com/abc123/240.jpg'><a href="https://storage.googleapis.com/images.pricecharting.com/abc123/1600.jpg">"""
+        assertEquals("https://storage.googleapis.com/images.pricecharting.com/abc123/1600.jpg", Prices.parseImage(html))
+    }
+
+    @Test fun vgdbIndexMatches() {
+        val v = io.github.vprodc83.gamecatalog.core.CoverSources.Vgdb.load(File("src/main/assets/vgdb.json.gz").inputStream())
+        assertEquals("https://www.vgdb.com.br/super-nintendo/jogos/super-mario-world/", v.page("SUPER MARIO WORLD", "SNES", Platforms.repoOf("SNES")))
+        assertEquals("https://www.vgdb.com.br/xbox-one/jogos/forza-horizon-4/", v.page("FORZA HORIZON 4", "XONE", ""))
+    }
+
     @Test fun misc() {
         assertEquals("1AbCdEfGhIjKlMnOpQrStUvWxYz0123", Sheets.idFromLink("https://docs.google.com/spreadsheets/d/1AbCdEfGhIjKlMnOpQrStUvWxYz0123/edit?usp=sharing"))
         assertEquals("AA", Sheets.col(26))

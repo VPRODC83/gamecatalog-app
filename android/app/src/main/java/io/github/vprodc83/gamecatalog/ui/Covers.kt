@@ -61,15 +61,12 @@ class CoverUpdater(private val m: AppModel) {
             var found = 0; var missing = 0; var failed = 0
             val loader = SingletonImageLoader.get(ctx)
             val gate = Semaphore(4)
-            m.clearAutoCovers()
             coroutineScope {
                 items.map { item ->
                     async {
                         gate.withPermit {
-                            val url = withContext(Dispatchers.Default) {
-                                val repoId = m.repo.platformOf(item.console)
-                                if (repoId.isEmpty()) null else cat.search(item.nome, listOf(repoId), limit = 1, minScore = 0.8, regiao = item.regiao).firstOrNull()?.let { cat.coverUrl(it.repo, it.nomeAcervo) }
-                            }
+                            // todas as fontes (libretro, Wikipédia, PriceCharting, VGDB, Tec Toy, TheGamesDB)
+                            val url = m.resolver.best(item)?.url
                             if (url == null) missing++
                             else {
                                 val ok = runCatching { loader.execute(ImageRequest.Builder(ctx).data(url).build()) is SuccessResult }.getOrDefault(false)
@@ -89,7 +86,7 @@ class CoverUpdater(private val m: AppModel) {
                 append(tr("{0} capa(s) atualizadas", found))
                 if (missing > 0) append(tr(" · {0} sem capa no catálogo", missing))
                 if (failed > 0) append(tr(" · {0} não baixaram (internet?)", failed))
-                append(tr(". Fotos de cartuchos e discos: não há fonte gratuita na internet; as suas fotos continuam como estão."))
+                append(tr(". Fotos de cartuchos e discos vêm do VGDB quando existem; as suas fotos continuam como estão."))
                 if (reviews.isNotEmpty()) append(tr(" Você tem {0} foto(s) sua(s) para comparar.", reviews.size))
             }
             running = false

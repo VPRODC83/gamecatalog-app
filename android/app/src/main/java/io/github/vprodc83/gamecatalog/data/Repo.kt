@@ -244,14 +244,14 @@ class Repo(private val dir: File, val sheets: Sheets) {
 
     fun emptyCollectionRow(console: String, nome: String, regiao: String): MutableList<String> {
         val c = cfg.colecao
-        return MutableList(c.ultima + 1) { "" }.also { it[c.console] = snap(c.aba, c.console, console); it[c.nome] = nome; if (c.regiao >= 0) it[c.regiao] = snap(c.aba, c.regiao, regiao) }
+        return MutableList(maxOf(c.ultima, c.adicionado) + 1) { "" }.also { it[c.console] = snap(c.aba, c.console, console); it[c.nome] = nome; if (c.regiao >= 0) it[c.regiao] = snap(c.aba, c.regiao, regiao); if (c.adicionado >= 0) it[c.adicionado] = today() }
     }
 
     /** Inclui na primeira aba de procurados (ou na indicada). */
     suspend fun addWanted(console: String, nome: String, wi: Int = 0, info: String = "") {
         val w = cfg.procurados.getOrNull(wi) ?: throw IllegalStateException(tr("Nenhuma aba de procurados configurada"))
-        val n = maxOf(w.nome, w.status, w.consoleCol, w.info) + 1
-        val row = MutableList(n) { "" }.also { it[w.nome] = nome; if (w.consoleCol >= 0) it[w.consoleCol] = console; if (w.info >= 0) it[w.info] = info }
+        val n = maxOf(w.nome, w.status, w.consoleCol, w.info, w.adicionado) + 1
+        val row = MutableList(n) { "" }.also { it[w.nome] = nome; if (w.consoleCol >= 0) it[w.consoleCol] = console; if (w.info >= 0) it[w.info] = info; if (w.adicionado >= 0) it[w.adicionado] = today() }
         appendRows(w.aba, n, listOf(row))
     }
 
@@ -290,6 +290,49 @@ class Repo(private val dir: File, val sheets: Sheets) {
         val s = _state.value
         val capas = s.capas.toMutableMap().also { m -> val mm = (m[chave] ?: emptyMap()).toMutableMap(); if (valor.isBlank()) mm.remove(tipo) else mm[tipo] = Capa("url", valor, ref); m[chave] = mm }
         _state.value = s.copy(capas = capas, capasRows = if (linha != null) s.capasRows + ("$chave|$tipo" to linha) else s.capasRows)
+    }
+
+    /** Situação de cada aba para a coluna ADICIONADO EM: já existe, pode criar (coluna) ou não dá (motivo). */
+    data class AddedPlan(val aba: String, val existente: Int, val nova: Int, val tabela: io.github.vprodc83.gamecatalog.google.Sheets.Table?, val problema: String?)
+
+    suspend fun planAddedColumn(): List<AddedPlan> {
+        val tabs = (listOf(cfg.colecao.aba) + cfg.procurados.map { it.aba }).distinct()
+        val tables = sheets.tables(sheetId)
+        val heads = sheets.batchGet(sheetId, tabs.map { "${q(it)}!A1:AZ1" })
+        return tabs.mapIndexed { i, tab ->
+            val h = heads.getOrNull(i)?.firstOrNull() ?: emptyList()
+            val ex = h.indexOfFirst { Text.norm(it) == Text.norm(Config.ADDED_HEAD) }
+            val t = tables.firstOrNull { it.tab == tab && it.startCol == 0 && it.startRow == 0 }
+            val nova = t?.endCol ?: (h.indexOfLast { it.isNotBlank() } + 1)
+            if (ex >= 0) return@mapIndexed AddedPlan(tab, ex, ex, t, null)
+            val col = sheets.get(sheetId, "${q(tab)}!${col(nova)}1:${col(nova)}5000")
+            val ocupada = col.any { r -> r.any { it.isNotBlank() } }
+            AddedPlan(tab, -1, nova, t, if (ocupada) tr("a coluna {0} da aba {1} já tem dados", col(nova), tab) else null)
+        }
+    }
+
+    /** Cria a coluna ADICIONADO EM (cabeçalho + ampliação da tabela, numa única operação) e grava na APP_CONFIG. */
+    suspend fun createAddedColumn(plan: List<AddedPlan>) {
+        for (p in plan) {
+            if (p.existente >= 0 || p.problema != null) continue
+            sheets.addColumnToTable(sheetId, sheets.tabId(sheetId, p.aba), p.nova, Config.ADDED_HEAD, p.tabela)
+        }
+        val ok = plan.filter { it.problema == null }.associate { it.aba to (if (it.existente >= 0) it.existente else it.nova) }
+        val c = cfg.colecao
+        val novaCol = ok[c.aba]?.let { c.copy(adicionado = it, ultima = maxOf(c.ultima, it)) } ?: c
+        saveConfig(Config.build(novaCol, cfg.procurados.map { w -> ok[w.aba]?.let { w.copy(adicionado = it) } ?: w }, cfg.compras, cfg))
+    }
+
+    /** Várias capas de uma vez (linhas novas na aba CAPAS; as que já existem são atualizadas). */
+    suspend fun setCapas(list: List<Triple<String, String, String>>, tipo: String = "capa") {
+        if (list.isEmpty()) return
+        ensureTab(Config.CAPAS, listOf("CHAVE", "TIPO", "ORIGEM", "VALOR", "REF", "DATA"))
+        val (upd, novos) = list.partition { _state.value.capasRows["${it.first}|$tipo"] != null }
+        upd.forEach { (chave, url, ref) -> setCapa(chave, tipo, url, ref) }
+        if (novos.isNotEmpty()) sheets.append(sheetId, "${q(Config.CAPAS)}!A1:F1", novos.map { (chave, url, ref) -> listOf(chave, tipo, "url", url, ref, today()) })
+        val s = _state.value
+        val capas = s.capas.toMutableMap().also { m -> novos.forEach { (chave, url, ref) -> m[chave] = (m[chave] ?: emptyMap()) + (tipo to Capa("url", url, ref)) } }
+        _state.value = s.copy(capas = capas)
     }
 
     /** Último preço consultado (aba PRECOS, compartilhada). */
