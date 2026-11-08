@@ -223,8 +223,7 @@ fun CoverDialog(m: AppModel, item: Item, tipo: String, onClose: () -> Unit) {
         val f = File(m.photoDir(), "${tipo}-${System.currentTimeMillis()}.jpg"); src.copyTo(f, overwrite = true)
         m.photo(item.chave, tipo)?.delete(); m.setPhoto(item.chave, tipo, f); onClose()
     }
-    val shot = remember { mutableStateOf<File?>(null) }
-    val camera = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { ok -> if (ok) shot.value?.let { keep(it) } }
+    val camera = rememberTakePicture { keep(it) }
     val gallery = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         if (uri != null) scope.launch {
             val tmp = File(File(ctx.cacheDir, "fotos").apply { mkdirs() }, "g-${System.currentTimeMillis()}.jpg")
@@ -234,26 +233,26 @@ fun CoverDialog(m: AppModel, item: Item, tipo: String, onClose: () -> Unit) {
     }
     // recortador de documentos do Android (melhoria 19): acha as bordas da caixa, endireita e corta o fundo
     val scanLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { res ->
-        val uri = com.google.mlkit.vision.documentscanner.GmsDocumentScanningResult.fromActivityResultIntent(res.data)?.pages?.firstOrNull()?.imageUri
+        val uri = runCatching { com.google.mlkit.vision.documentscanner.GmsDocumentScanningResult.fromActivityResultIntent(res.data)?.pages?.firstOrNull()?.imageUri }.getOrNull()
         if (res.resultCode == android.app.Activity.RESULT_OK && uri != null) scope.launch {
             val tmp = File(File(ctx.cacheDir, "fotos").apply { mkdirs() }, "r-${System.currentTimeMillis()}.jpg")
-            withContext(Dispatchers.IO) { ctx.contentResolver.openInputStream(uri)?.use { i -> tmp.outputStream().use { i.copyTo(it) } } }
-            keep(tmp)
+            val ok = withContext(Dispatchers.IO) { runCatching { ctx.contentResolver.openInputStream(uri)?.use { i -> tmp.outputStream().use { i.copyTo(it) } } }.isSuccess }
+            if (ok && tmp.length() > 0) keep(tmp)
         }
     }
-    fun scan() {
+    fun scan() = runCatching {
         val act = generateSequence(ctx) { (it as? android.content.ContextWrapper)?.baseContext }.filterIsInstance<android.app.Activity>().firstOrNull() ?: return
         val opts = com.google.mlkit.vision.documentscanner.GmsDocumentScannerOptions.Builder().setGalleryImportAllowed(true).setPageLimit(1)
             .setResultFormats(com.google.mlkit.vision.documentscanner.GmsDocumentScannerOptions.RESULT_FORMAT_JPEG)
             .setScannerMode(com.google.mlkit.vision.documentscanner.GmsDocumentScannerOptions.SCANNER_MODE_BASE).build()
         com.google.mlkit.vision.documentscanner.GmsDocumentScanning.getClient(opts).getStartScanIntent(act)
-            .addOnSuccessListener { scanLauncher.launch(androidx.activity.result.IntentSenderRequest.Builder(it).build()) }
+            .addOnSuccessListener { runCatching { scanLauncher.launch(androidx.activity.result.IntentSenderRequest.Builder(it).build()) } }
             .addOnFailureListener { m.message = tr("O recorte automático não está disponível neste celular. Use Fotografar.") }
-    }
+    }.let { }
     ConfirmDialog(if (tipo == "capa") tr("Escolher a capa") else tr("Foto da mídia"), tr("Fechar"), onClose, onConfirm = onClose) {
         Button(onClick = { scan() }, modifier = Modifier.fillMaxWidth()) { Text(tr("Fotografar com recorte automático")) }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = { val f = File(File(ctx.cacheDir, "fotos").apply { mkdirs() }, "c-${System.currentTimeMillis()}.jpg"); shot.value = f; camera.launch(fileUri(ctx, f)) }) { Text(tr("Fotografar")) }
+            OutlinedButton(onClick = { val f = File(File(ctx.cacheDir, "fotos").apply { mkdirs() }, "c-${System.currentTimeMillis()}.jpg"); camera(f) }) { Text(tr("Fotografar")) }
             OutlinedButton(onClick = { gallery.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }) { Text(tr("Galeria")) }
         }
         Hint(tr("Fotos suas ficam só neste aparelho."))

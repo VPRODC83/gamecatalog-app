@@ -64,10 +64,12 @@ fun LiveCameraDialog(m: AppModel, onOpen: (Item) -> Unit, onPick: (Cand) -> Unit
     val ctx = LocalContext.current
     var granted by remember { mutableStateOf(ContextCompat.checkSelfPermission(ctx, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) }
     val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted = it; if (!it) onClose() }
-    LaunchedEffect(Unit) { if (!granted) ask.launch(Manifest.permission.CAMERA) }
+    LaunchedEffect(Unit) { if (!granted) runCatching { ask.launch(Manifest.permission.CAMERA) }.onFailure { onClose() } }
     Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Box(Modifier.fillMaxSize().background(Color.Black)) {
-            if (granted) LiveView(m, onOpen = { onClose(); onOpen(it) }, onPick = { onClose(); onPick(it) })
+            if (granted) LiveView(m, onOpen = { onClose(); onOpen(it) }, onPick = { onClose(); onPick(it) }, onFail = {
+                android.widget.Toast.makeText(ctx, tr("Não consegui abrir a câmera deste celular."), android.widget.Toast.LENGTH_LONG).show(); onClose()
+            })
             FilledTonalButton(onClick = onClose, modifier = Modifier.align(Alignment.TopStart).statusBarsPadding().padding(12.dp)) { Text(tr("‹ Voltar")) }
             Text(tr("Aponte para as etiquetas ou lombadas. Toque num selo para abrir o jogo."), color = Color.White.copy(alpha = .85f), style = MaterialTheme.typography.labelMedium,
                 modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(16.dp).background(Color.Black.copy(alpha = .45f), RoundedCornerShape(8.dp)).padding(8.dp))
@@ -76,13 +78,17 @@ fun LiveCameraDialog(m: AppModel, onOpen: (Item) -> Unit, onPick: (Cand) -> Unit
 }
 
 @Composable
-private fun LiveView(m: AppModel, onOpen: (Item) -> Unit, onPick: (Cand) -> Unit) {
+private fun LiveView(m: AppModel, onOpen: (Item) -> Unit, onPick: (Cand) -> Unit, onFail: () -> Unit) {
     val ctx = LocalContext.current
     val owner = LocalLifecycleOwner.current
     val density = LocalDensity.current
     var hits by remember { mutableStateOf<List<LiveHit>>(emptyList()) }
     var viewW by remember { mutableStateOf(1f) }; var viewH by remember { mutableStateOf(1f) }
-    val executor = remember { Executors.newSingleThreadExecutor() }
+    val base = remember { Executors.newSingleThreadExecutor() }
+    val closed = remember { java.util.concurrent.atomic.AtomicBoolean(false) }
+    // depois de fechar, quadros que ainda chegam são ignorados (sem isso o Android encerra o app)
+    val executor = remember { java.util.concurrent.Executor { r -> if (!closed.get()) runCatching { base.execute(r) } } }
+    val main = remember { android.os.Handler(android.os.Looper.getMainLooper()) }
     val recognizer = remember { TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS) }
     val controller = remember { LifecycleCameraController(ctx) }
     var last by remember { mutableStateOf(0L) }
@@ -90,32 +96,47 @@ private fun LiveView(m: AppModel, onOpen: (Item) -> Unit, onPick: (Cand) -> Unit
     DisposableEffect(owner) {
         val cat: Catalog? = m.catalog
         val repos = m.repo.state.value.consoles.map { m.repo.platformOf(it) }.filter { it.isNotEmpty() }.distinct()
-        controller.setImageAnalysisAnalyzer(executor, MlKitAnalyzer(listOf(recognizer), CameraController.COORDINATE_SYSTEM_VIEW_REFERENCED, executor) { result ->
-            val now = System.currentTimeMillis()
-            if (cat == null || now - last < 600) return@MlKitAnalyzer
-            last = now
-            val text = result.getValue(recognizer) ?: return@MlKitAnalyzer
-            val blocks = text.textBlocks.map { b -> val r = b.boundingBox; Identify.Block(b.text, (r?.left ?: 0) / viewW, (r?.top ?: 0) / viewH, (r?.right ?: 0) / viewW, (r?.bottom ?: 0) / viewH) }
-            val fresh = ArrayList<LiveHit>()
-            // código impresso (exato) e nome lido na etiqueta
-            m.serials?.find(text.text)?.forEach { h ->
-                val b = text.textBlocks.firstOrNull { it.text.uppercase().contains(h.code.substringBefore('-')) }?.boundingBox
-                fresh.add(hit(m, Catalog.cleanTitle(h.nome), h.repo, (b?.exactCenterX() ?: viewW / 2), (b?.top?.toFloat() ?: viewH / 3), now))
-            }
-            runCatching { Identify.find(cat, blocks, text.text, repos) }.getOrDefault(emptyList()).forEach { f ->
-                val b = f.block
-                fresh.add(hit(m, f.match.tituloLimpo, f.match.repo, ((b?.left ?: .4f) + (b?.right ?: .6f)) / 2 * viewW, (b?.top ?: .3f) * viewH, now))
-            }
-            // mantém por 1,5 s o que sumiu de vista, para os selos não piscarem
-            val keep = hits.filter { old -> now - old.seen < 1500 && fresh.none { it.titulo == old.titulo && it.repo == old.repo } }
-            hits = (fresh.distinctBy { it.repo + it.titulo } + keep).take(12)
-        })
-        controller.bindToLifecycle(owner)
-        onDispose { controller.unbind(); controller.clearImageAnalysisAnalyzer(); executor.shutdown(); recognizer.close() }
+        val ok = runCatching {
+            controller.setImageAnalysisAnalyzer(executor, MlKitAnalyzer(listOf(recognizer), CameraController.COORDINATE_SYSTEM_VIEW_REFERENCED, executor) { result ->
+                try {
+                    val now = System.currentTimeMillis()
+                    if (closed.get() || cat == null || now - last < 600) return@MlKitAnalyzer
+                    last = now
+                    val text = result.getValue(recognizer) ?: return@MlKitAnalyzer
+                    val w = viewW; val h = viewH
+                    val blocks = text.textBlocks.map { b -> val r = b.boundingBox; Identify.Block(b.text, (r?.left ?: 0) / w, (r?.top ?: 0) / h, (r?.right ?: 0) / w, (r?.bottom ?: 0) / h) }
+                    val fresh = ArrayList<LiveHit>()
+                    // código impresso (exato) e nome lido na etiqueta
+                    runCatching { m.serials?.find(text.text) }.getOrNull()?.forEach { hh ->
+                        val b = text.textBlocks.firstOrNull { it.text.uppercase().contains(hh.code.substringBefore('-')) }?.boundingBox
+                        runCatching { fresh.add(hit(m, Catalog.cleanTitle(hh.nome), hh.repo, (b?.exactCenterX() ?: w / 2), (b?.top?.toFloat() ?: h / 3), now)) }
+                    }
+                    runCatching { Identify.find(cat, blocks, text.text, repos) }.getOrDefault(emptyList()).forEach { f ->
+                        val b = f.block
+                        runCatching { fresh.add(hit(m, f.match.tituloLimpo, f.match.repo, ((b?.left ?: .4f) + (b?.right ?: .6f)) / 2 * w, (b?.top ?: .3f) * h, now)) }
+                    }
+                    main.post {
+                        if (closed.get()) return@post
+                        // mantém por 1,5 s o que sumiu de vista, para os selos não piscarem
+                        val keep = hits.filter { old -> now - old.seen < 1500 && fresh.none { it.titulo == old.titulo && it.repo == old.repo } }
+                        hits = (fresh.distinctBy { it.repo + it.titulo } + keep).take(12)
+                    }
+                } catch (_: Throwable) { }
+            })
+            controller.bindToLifecycle(owner)
+        }.isSuccess
+        if (!ok) onFail()
+        onDispose {
+            closed.set(true)
+            runCatching { controller.clearImageAnalysisAnalyzer() }; runCatching { controller.unbind() }
+            main.removeCallbacksAndMessages(null)
+            // fecha o leitor e a fila um pouco depois, quando o último quadro já terminou
+            main.postDelayed({ runCatching { recognizer.close() }; runCatching { base.shutdown() } }, 1500)
+        }
     }
 
     Box(Modifier.fillMaxSize()) {
-        AndroidView(factory = { c -> PreviewView(c).apply { this.controller = controller; scaleType = PreviewView.ScaleType.FILL_CENTER } },
+        AndroidView(factory = { c -> PreviewView(c).apply { scaleType = PreviewView.ScaleType.FILL_CENTER; runCatching { this.controller = controller } } },
             modifier = Modifier.fillMaxSize(), update = { v -> viewW = v.width.toFloat().coerceAtLeast(1f); viewH = v.height.toFloat().coerceAtLeast(1f) })
         hits.forEach { h ->
             val (txt, cor) = when (h.lista) {

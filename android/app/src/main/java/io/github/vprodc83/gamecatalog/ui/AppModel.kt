@@ -20,7 +20,8 @@ import java.io.File
 
 /** Estado do app compartilhado entre as telas. */
 class AppModel(val ctx: Context, val auth: GoogleAuth) {
-    val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    // um erro numa tarefa de fundo (capas, datas, índice) é registrado e não fecha o app
+    val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main + kotlinx.coroutines.CoroutineExceptionHandler { _, e -> CrashLog.note(ctx, e) })
     val sheets = Sheets { token() }
     val repo = Repo(ctx.filesDir, sheets)
     var catalog: Catalog? by mutableStateOf(null)

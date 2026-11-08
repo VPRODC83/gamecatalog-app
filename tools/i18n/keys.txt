@@ -351,3 +351,8 @@ Todos os jogos de um console
 Cerca de {0} capas: baixa uns {1} e guarda uns {2}. Só no Wi-Fi.
 Preparar {0}
 Apagar o que foi preparado
+Não consegui abrir a câmera deste celular.
+Sem permissão da câmera. Libere nas configurações do Android para fotografar.
+O app teve um erro da última vez
+Guardei o motivo. Enviar o relatório ajuda a corrigir o problema (não contém dados da planilha).
+Enviar o relatório

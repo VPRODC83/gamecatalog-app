@@ -164,12 +164,12 @@ fun IdentifyScreen(m: AppModel, onOpen: (Item) -> Unit) {
                     text.isBlank() -> tr("Não consegui ler texto na foto. Use o Google Lens ou a busca por nome.")
                     else -> tr("Li o texto, mas não reconheci o jogo. Use o Google Lens ou a busca por nome.")
                 }
-            } catch (e: Exception) { status = tr("Não consegui ler a foto: {0}", e.message) } finally { reading = false }
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e
+            } catch (e: Throwable) { status = tr("Não consegui ler a foto: {0}", e.message ?: e.javaClass.simpleName) } finally { reading = false }
         }
     }
 
-    val shotFile = remember { mutableStateOf<File?>(null) }
-    val camera = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { ok -> if (ok) shotFile.value?.let { analyze(it) } }
+    val camera = rememberTakePicture { analyze(it) }
     val gallery = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         if (uri != null) scope.launch {
             val f = File(File(ctx.cacheDir, "fotos").apply { mkdirs() }, "galeria-${System.currentTimeMillis()}.jpg")
@@ -200,8 +200,8 @@ fun IdentifyScreen(m: AppModel, onOpen: (Item) -> Unit) {
                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(onClick = {
-                            val f = File(File(ctx.cacheDir, "fotos").apply { mkdirs() }, "foto-${System.currentTimeMillis()}.jpg"); shotFile.value = f
-                            camera.launch(fileUri(ctx, f))
+                            val f = File(File(ctx.cacheDir, "fotos").apply { mkdirs() }, "foto-${System.currentTimeMillis()}.jpg")
+                            camera(f)
                         }, modifier = Modifier.weight(1f)) { Icon(Icons.Default.PhotoCamera, null); Text(tr("  Fotografar")) }
                         OutlinedButton(onClick = { gallery.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }, modifier = Modifier.weight(1f)) { Icon(Icons.Default.Image, null); Text(tr("  Galeria")) }
                     }

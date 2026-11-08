@@ -351,5 +351,10 @@
 "(choisir)",
 "Environ {0} jaquettes : télécharge environ {1} et stocke environ {2}. Wi-Fi uniquement.",
 "Préparer {0}",
-"Supprimer ce qui a été préparé"
+"Supprimer ce qui a été préparé",
+"Impossible d’ouvrir l’appareil photo de ce téléphone.",
+"Pas d’autorisation pour l’appareil photo. Autorisez-la dans les réglages Android pour photographier.",
+"L’app a rencontré une erreur la dernière fois",
+"J’ai enregistré la cause. Envoyer le rapport aide à corriger le problème (il ne contient aucune donnée de la feuille).",
+"Envoyer le rapport"
 ]

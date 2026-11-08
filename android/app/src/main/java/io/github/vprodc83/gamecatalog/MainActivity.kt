@@ -65,6 +65,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        io.github.vprodc83.gamecatalog.ui.CrashLog.install(this, io.github.vprodc83.gamecatalog.ui.Updates.appVersion(this))
         enableEdgeToEdge()
         io.github.vprodc83.gamecatalog.ui.I18n.init(this)
         val auth = GoogleAuth(this)
@@ -80,6 +81,7 @@ class MainActivity : ComponentActivity() {
                     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) { App(model) }
                     // abertura uma vez por abertura do app (girar a tela não repete)
                     if (!splashDone.value) io.github.vprodc83.gamecatalog.ui.SplashScreen(version) { splashDone.value = true }
+                    else io.github.vprodc83.gamecatalog.ui.CrashReportDialog()
                 }
                 }
             }

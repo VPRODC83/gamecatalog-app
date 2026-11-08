@@ -351,5 +351,10 @@
 "(choose)",
 "About {0} covers: downloads about {1} and stores about {2}. Wi-Fi only.",
 "Prepare {0}",
-"Delete what was prepared"
+"Delete what was prepared",
+"Couldn't open this phone's camera.",
+"No camera permission. Allow it in Android settings to take photos.",
+"The app had an error last time",
+"I saved the cause. Sending the report helps fix the problem (it contains no spreadsheet data).",
+"Send the report"
 ]

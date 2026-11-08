@@ -42,7 +42,8 @@ class Reading(val bitmap: Bitmap, val blocks: List<Identify.Block>, val words: L
 /** Abre a foto já girada como foi tirada (EXIF) e reduzida para no máximo [max] pixels no lado maior. */
 fun decodeUpright(f: File, max: Int = 2048): Bitmap {
     val o = BitmapFactory.Options().apply { inJustDecodeBounds = true }; BitmapFactory.decodeFile(f.path, o)
-    var s = 1; while (maxOf(o.outWidth, o.outHeight) / (s * 2) >= max) s *= 2
+    // reduz já na leitura (fotos de 50 MP ocupariam centenas de MB e encerrariam o app por falta de memória)
+    var s = 1; while (maxOf(o.outWidth, o.outHeight) / s > max) s *= 2
     val bmp = BitmapFactory.decodeFile(f.path, BitmapFactory.Options().apply { inSampleSize = s }) ?: throw IllegalStateException("imagem ilegível")
     val rot = runCatching { when (ExifInterface(f.path).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)) {
         ExifInterface.ORIENTATION_ROTATE_90 -> 90f; ExifInterface.ORIENTATION_ROTATE_180 -> 180f; ExifInterface.ORIENTATION_ROTATE_270 -> 270f; else -> 0f } }.getOrDefault(0f)
@@ -101,5 +102,34 @@ fun WordPhoto(r: Reading, selected: Set<Int>, onToggle: (Int) -> Unit, modifier:
                 drawRoundRect(if (on) Color(0xFF8F84FF) else Color(0xCCFFFFFF), tl, sz, CornerRadius(4f), style = Stroke(if (on) 4f else 2f))
             }
         }
+    }
+}
+
+/**
+ * Tira uma foto pelo app de câmera do celular. Como o app declara a permissão de câmera (por causa da câmera ao vivo),
+ * o Android exige que ela esteja concedida até para usar o app de câmera; sem isso ele encerra o app.
+ * Por isso a permissão é pedida antes, e qualquer falha vira um aviso em vez de travar.
+ */
+@Composable
+fun rememberTakePicture(onShot: (File) -> Unit): (File) -> Unit {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val path = androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf<String?>(null) }
+    val take = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.TakePicture()) { ok ->
+        val f = path.value?.let { File(it) }
+        if (ok && f != null && f.length() > 0) onShot(f)
+    }
+    fun go(f: File) {
+        runCatching { take.launch(fileUri(ctx, f)) }.onFailure {
+            android.widget.Toast.makeText(ctx, tr("Não consegui abrir a câmera deste celular."), android.widget.Toast.LENGTH_LONG).show()
+        }
+    }
+    val perm = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) { ok ->
+        val f = path.value?.let { File(it) } ?: return@rememberLauncherForActivityResult
+        if (ok) go(f) else android.widget.Toast.makeText(ctx, tr("Sem permissão da câmera. Libere nas configurações do Android para fotografar."), android.widget.Toast.LENGTH_LONG).show()
+    }
+    return { f ->
+        f.parentFile?.mkdirs(); path.value = f.path
+        if (androidx.core.content.ContextCompat.checkSelfPermission(ctx, android.Manifest.permission.CAMERA) == android.content.pm.PackageManager.PERMISSION_GRANTED) go(f)
+        else runCatching { perm.launch(android.Manifest.permission.CAMERA) }
     }
 }

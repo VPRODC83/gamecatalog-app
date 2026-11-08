@@ -351,5 +351,10 @@
 "(elige)",
 "Unas {0} portadas: descarga unos {1} y guarda unos {2}. Solo con Wi-Fi.",
 "Preparar {0}",
-"Borrar lo preparado"
+"Borrar lo preparado",
+"No pude abrir la cámara de este teléfono.",
+"Sin permiso de cámara. Actívalo en los ajustes de Android para fotografiar.",
+"La app tuvo un error la última vez",
+"Guardé el motivo. Enviar el informe ayuda a corregir el problema (no contiene datos de la hoja).",
+"Enviar el informe"
 ]

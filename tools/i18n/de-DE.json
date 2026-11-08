@@ -351,5 +351,10 @@
 "(auswählen)",
 "Etwa {0} Cover: lädt etwa {1} herunter und speichert etwa {2}. Nur im WLAN.",
 "{0} vorbereiten",
-"Vorbereitetes löschen"
+"Vorbereitetes löschen",
+"Die Kamera dieses Handys ließ sich nicht öffnen.",
+"Keine Kameraberechtigung. Erlaube sie in den Android-Einstellungen, um zu fotografieren.",
+"Die App hatte beim letzten Mal einen Fehler",
+"Die Ursache wurde gespeichert. Das Senden des Berichts hilft bei der Behebung (er enthält keine Tabellendaten).",
+"Bericht senden"
 ]

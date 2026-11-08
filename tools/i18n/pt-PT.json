@@ -351,5 +351,10 @@
 "(escolha)",
 "Cerca de {0} capas: transfere uns {1} e guarda uns {2}. Só em Wi-Fi.",
 "Preparar {0}",
-"Apagar o que foi preparado"
+"Apagar o que foi preparado",
+"Não consegui abrir a câmara deste telemóvel.",
+"Sem permissão da câmara. Autorize nas definições do Android para fotografar.",
+"A app teve um erro da última vez",
+"Guardei o motivo. Enviar o relatório ajuda a corrigir o problema (não contém dados da folha de cálculo).",
+"Enviar o relatório"
 ]
