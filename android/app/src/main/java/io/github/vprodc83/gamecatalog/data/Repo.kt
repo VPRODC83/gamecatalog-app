@@ -353,6 +353,7 @@ class Repo(private val dir: File, val sheets: Sheets) {
     /** Procura o jogo nas três listas, aceitando erros de digitação e consoles da mesma família (SNES = SFC). */
     fun find(nome: String, console: String?, outros: List<String> = emptyList()): List<Found> {
         val names = (listOf(nome) + outros).filter { it.isNotBlank() }
+        if (names.isEmpty()) return emptyList()  // nome ainda vazio (ex.: tela "Novo jogo" recém-aberta)
         return _state.value.items.mapNotNull { i ->
             if (!console.isNullOrBlank() && i.console.isNotBlank() && platformOf(console).ifEmpty { Text.norm(console) } != platformOf(i.console).ifEmpty { Text.norm(i.console) }) return@mapNotNull null
             val s = names.maxOf { n -> if (Text.score(n, i.nome) >= 0.82 && Text.score(i.nome, n) >= 0.6) Text.score(n, i.nome) else 0.0 }

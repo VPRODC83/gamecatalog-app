@@ -112,6 +112,8 @@ jobs:
           ANDROID_KEYSTORE_FILE="$ks" APP_VERSION="${TAG#v}" ./gradlew --no-daemon testDebugUnitTest --tests 'io.github.vprodc83.gamecatalog.CoreTest' assembleRelease
           rm -f "$ks"
           cp app/build/outputs/apk/release/app-release.apk ../gamecatalog.apk
+          # mapa do R8: traduz os relatórios de erro enviados pelo app (os nomes no APK são encurtados)
+          gzip -9 -c app/build/outputs/mapping/release/mapping.txt > ../mapa-r8.txt.gz
           cd ..
           sha256sum gamecatalog.apk > gamecatalog.apk.sha256
 
@@ -129,7 +131,7 @@ jobs:
           ANTERIOR: ${{ steps.v.outputs.anterior }}
         run: |
           set -euo pipefail
-          files="gamecatalog.apk gamecatalog.apk.sha256"
+          files="gamecatalog.apk gamecatalog.apk.sha256 mapa-r8.txt.gz"
           if [ -n "${ANTERIOR:-}" ] && git rev-parse -q --verify "refs/tags/$ANTERIOR" >/dev/null; then range="$ANTERIOR..$GITHUB_SHA"; else range="$GITHUB_SHA"; fi
           mudancas="$(git log --no-merges --pretty='- %s' "$range" | head -40)"
           notes="$(printf 'Versão %s do Game Catalog.\n\nMudanças:\n%s\n\nCelular Android: baixe o gamecatalog.apk abaixo e abra para instalar, ou atualize pelo app em Ajustes → Procurar atualização.' "$TAG" "$mudancas")"
