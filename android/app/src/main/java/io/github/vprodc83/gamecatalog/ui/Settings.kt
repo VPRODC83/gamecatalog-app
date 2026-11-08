@@ -271,7 +271,7 @@ private fun CoverIndexCard(m: AppModel) {
             } else {
                 OutlinedButton(onClick = { mt.buildFromLists() }) { Text(tr("Preparar com a minha coleção e listas")) }
                 val cat = m.catalog
-                val opts = st.consoles.mapNotNull { c -> val r = m.repo.platformOf(c); cat?.repo(r)?.let { c to r } }.distinctBy { it.second }
+                val opts = st.consoles.mapNotNull { c -> val r = m.repo.platformOf(c); cat?.repo(r)?.takeIf { it.sha.isNotEmpty() }?.let { c to r } }.distinctBy { it.second }
                 if (opts.isNotEmpty()) {
                     Picker(tr("Todos os jogos de um console"), console, listOf("" to tr("(escolha)")) + opts.map { it.first to cn(it.first) }) { console = it }
                     opts.firstOrNull { it.first == console }?.let { (c, r) ->

@@ -24,8 +24,9 @@ object CoverSources {
 
     /** Nome do console para ajudar a busca textual (Wikipédia). */
     fun consoleWords(console: String, repo: String): String = when {
+        repo.startsWith("@") -> consoleWords(repo.drop(1), "")
         repo.isNotEmpty() -> repo.substringAfterLast("_-_").replace('_', ' ').replace(" - ", " ")
-        else -> mapOf("XONE" to "Xbox One", "XSX" to "Xbox Series X", "PS5" to "PlayStation 5", "NSW" to "Nintendo Switch", "NSW2" to "Nintendo Switch 2",
+        else -> mapOf("XONE" to "Xbox One", "XSX" to "Xbox Series X", "PS5" to "PlayStation 5", "NSW" to "Nintendo Switch", "NSW2" to "Nintendo Switch 2", "PS4" to "PlayStation 4",
             "PSVITA" to "PlayStation Vita")[Text.norm(console)] ?: console
     }
 

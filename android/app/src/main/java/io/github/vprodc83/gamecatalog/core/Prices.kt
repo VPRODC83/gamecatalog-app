@@ -99,7 +99,7 @@ object Prices {
         // consoles atuais (sem acervo no libretro): o código da planilha vem em "@CÓDIGO"
         "@XONE" -> listOf("xbox-one", "pal-xbox-one"); "@XSX" -> listOf("xbox-series-x"); "@PS5" -> listOf("playstation-5", "pal-playstation-5")
         "@NSW" -> listOf("nintendo-switch", "pal-nintendo-switch", "jp-nintendo-switch"); "@NSW2" -> listOf("nintendo-switch-2")
-        "@PSVITA" -> listOf("playstation-vita")
+        "@PSVITA" -> listOf("playstation-vita"); "@PS4" -> listOf("playstation-4", "pal-playstation-4", "jp-playstation-4")
         else -> emptyList()
     }
 
@@ -116,10 +116,10 @@ object Prices {
     /** Acervo do libretro (ou "@CÓDIGO" dos consoles atuais) para o console do PriceCharting. */
     fun repoOfPcConsole(pc: String): String {
         val all = listOf(Platforms.SNES, Platforms.NES, Platforms.MD, Platforms.MS, Platforms.N64, Platforms.ATARI, "Sony_-_PlayStation", "Sony_-_PlayStation_2",
-            "Sony_-_PlayStation_3", "Sony_-_PlayStation_4", "Nintendo_-_Game_Boy", "Nintendo_-_Game_Boy_Color", "Nintendo_-_Game_Boy_Advance", "Nintendo_-_GameCube",
+            "Sony_-_PlayStation_3", "@PS4", "Nintendo_-_Game_Boy", "Nintendo_-_Game_Boy_Color", "Nintendo_-_Game_Boy_Advance", "Nintendo_-_GameCube",
             "Nintendo_-_Wii", "Nintendo_-_Wii_U", "Nintendo_-_Nintendo_DS", "Nintendo_-_Nintendo_3DS", "Sega_-_Saturn", "Sega_-_Dreamcast", "Sega_-_Game_Gear",
             "Sega_-_Mega-CD_-_Sega_CD", "Microsoft_-_Xbox", "Microsoft_-_Xbox_360", "Sony_-_PlayStation_Portable", "SNK_-_Neo_Geo", "Magnavox_-_Odyssey2",
-            "Microsoft_-_MSX", "NEC_-_PC_Engine_-_TurboGrafx_16", "@XONE", "@XSX", "@PS5", "@NSW", "@NSW2", "@PSVITA")
+            "Microsoft_-_MSX", "NEC_-_PC_Engine_-_TurboGrafx_16", "@XONE", "@XSX", "@PS5", "@NSW2", "@NSW", "@PSVITA")
         return all.firstOrNull { pc in pcConsole(it) } ?: ""
     }
 

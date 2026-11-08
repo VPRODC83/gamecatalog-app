@@ -26,7 +26,12 @@ object Platforms {
         "3DS" to "Nintendo_-_Nintendo_3DS", "N3DS" to "Nintendo_-_Nintendo_3DS",
         "PS1" to "Sony_-_PlayStation", "PSX" to "Sony_-_PlayStation", "PS" to "Sony_-_PlayStation", "PLAYSTATION" to "Sony_-_PlayStation",
         "PS2" to "Sony_-_PlayStation_2", "PLAYSTATION2" to "Sony_-_PlayStation_2", "PS3" to "Sony_-_PlayStation_3", "PLAYSTATION3" to "Sony_-_PlayStation_3",
-        "PS4" to "Sony_-_PlayStation_4", "PLAYSTATION4" to "Sony_-_PlayStation_4", "PSP" to "Sony_-_PlayStation_Portable",
+        // consoles atuais: catálogo de nomes do Wikidata (assets/modern.json), sem capas do libretro
+        "PS4" to "@PS4", "PLAYSTATION4" to "@PS4", "PS5" to "@PS5", "PLAYSTATION5" to "@PS5",
+        "NSW" to "@NSW", "SWITCH" to "@NSW", "NINTENDOSWITCH" to "@NSW", "SWITCH1" to "@NSW", "NSW1" to "@NSW",
+        "NSW2" to "@NSW2", "SWITCH2" to "@NSW2", "NINTENDOSWITCH2" to "@NSW2", "NS2" to "@NSW2",
+        "XONE" to "@XONE", "XBOXONE" to "@XONE", "XB1" to "@XONE", "XSX" to "@XSX", "XSS" to "@XSX", "XBOXSERIES" to "@XSX", "XBOXSERIESX" to "@XSX", "XBOXSERIESS" to "@XSX",
+        "PSP" to "Sony_-_PlayStation_Portable",
         "MVS" to "SNK_-_Neo_Geo", "NEOGEO" to "SNK_-_Neo_Geo", "AES" to "SNK_-_Neo_Geo",
         "ODYSSEY" to "Magnavox_-_Odyssey2", "ODYSSEY2" to "Magnavox_-_Odyssey2", "VIDEOPAC" to "Magnavox_-_Odyssey2",
         "ATARI" to ATARI, "ATARI2600" to ATARI, "2600" to ATARI, "MSX" to "Microsoft_-_MSX",
@@ -39,7 +44,7 @@ object Platforms {
         val n = Text.norm(console)
         if (n.isEmpty()) return ""
         alias[n]?.let { return it }
-        for (p in listOf("ATARI", "NES", "PS2", "PS3", "PS4", "PS1", "MD", "MS", "SNES")) if (n.startsWith(p)) alias[p]?.let { return it }
+        for (p in listOf("NSW2", "SWITCH2", "NSW", "SWITCH", "PS5", "XONE", "XSX", "ATARI", "NES", "PS2", "PS3", "PS4", "PS1", "MD", "MS", "SNES")) if (n.startsWith(p)) alias[p]?.let { return it }
         return ""
     }
 
@@ -63,11 +68,17 @@ object Platforms {
         "SEGA ?CD|MEGA-CD" to "Sega_-_Mega-CD_-_Sega_CD",
         "SATURN" to "Sega_-_Saturn",
         "DREAMCAST" to "Sega_-_Dreamcast",
+        // códigos impressos modernos: PPSA/ECAS/ELJM (PS5), CUSA/PLAS/PCAS/PLJM (PS4), HAC- (Switch), BEE- (Switch 2)
+        "NINTENDO ?SWITCH ?2|SWITCH ?2|\\bBEE-" to "@NSW2",
+        "NINTENDO ?SWITCH|\\bHAC-" to "@NSW",
+        "PLAYSTATION ?5|\\bPS5\\b|PPSA ?-?\\d|ECAS-|ELJM-|ELAS-" to "@PS5",
+        "XBOX ?SERIES|SERIES ?X" to "@XSX",
+        "XBOX ?ONE" to "@XONE",
         "PLAYSTATION ?2|PS2|SLUS-2|SLES-5|SCUS-97" to "Sony_-_PlayStation_2",
         "PLAYSTATION ?3|PS3|BLUS|BLES|BCUS" to "Sony_-_PlayStation_3",
-        "PLAYSTATION ?4|PS4|CUSA" to "Sony_-_PlayStation_4",
+        "PLAYSTATION ?4|PS4|CUSA ?-?\\d|PLAS-|PCAS-|PLJM-|PLJS-" to "@PS4",
         "\\bPSP\\b|UMD" to "Sony_-_PlayStation_Portable",
-        "PLAYSTATION|SLUS-|SLES-|SCUS-|SCES-" to "Sony_-_PlayStation",
+        "PLAYSTATION(?! ?[2-5])|SLUS-|SLES-|SCUS-|SCES-" to "Sony_-_PlayStation",
         "GAMECUBE|DOL-" to "Nintendo_-_GameCube",
         "\\bWII ?U\\b|WUP-" to "Nintendo_-_Wii_U",
         "\\bWII\\b|RVL-" to "Nintendo_-_Wii",
@@ -75,7 +86,7 @@ object Platforms {
         "NINTENDO ?DS|NTR-" to "Nintendo_-_Nintendo_DS",
         "XBOX ?360" to "Microsoft_-_Xbox_360",
         "ATARI|CCE|DACTAR|POLIVOX|VIDEO COMPUTER SYSTEM" to ATARI,
-        "ODYSSEY|VIDEOPAC|PHILIPS" to "Magnavox_-_Odyssey2",
+        "MAGNAVOX|ODYSSEY ?(2|²)|VIDEOPAC|PHILIPS" to "Magnavox_-_Odyssey2",
         "NEO ?GEO|SNK" to "SNK_-_Neo_Geo",
         "\\bMSX\\b" to "Microsoft_-_MSX"
     ).map { (re, repo) -> re.toRegex(RegexOption.IGNORE_CASE) to repo }

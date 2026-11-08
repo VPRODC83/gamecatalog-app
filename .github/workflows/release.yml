@@ -103,6 +103,8 @@ jobs:
             echo "❌ Segredo ANDROID_KEY_PASSWORD não cadastrado: sem ele não dá para assinar o APK." >> "$GITHUB_STEP_SUMMARY"; exit 1
           fi
           python tools/build_catalog.py "$RUNNER_TEMP/libretro" android/app/src/main/assets/catalog.json.gz
+          # nomes dos consoles atuais (Wikidata); se o Wikidata não responder, fica o catálogo salvo no repositório
+          timeout 900 python tools/build_modern.py android/app/src/main/assets/modern.json.gz || echo "::warning::Wikidata indisponível; usando o catálogo moderno salvo"
           ks="$RUNNER_TEMP/release.keystore"
           openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in android/app/release.keystore.enc -out "$ks" -pass env:ANDROID_KEY_PASSWORD
           cd android

@@ -10,7 +10,7 @@ import java.util.zip.GZIPInputStream
  * Serve para reconhecer o jogo a partir do texto lido na etiqueta e para montar o endereço da capa.
  */
 class Catalog(val repos: List<Repo>) {
-    class Repo(val repo: String, val nome: String, val sha: String, val names: List<String>) {
+    class Repo(val repo: String, val nome: String, val sha: String, val names: List<String>, val datas: List<String>? = null) {
         val base: List<String> = names.map { Text.words(it) }
         // índice de palavras → posições, para não comparar com todos os nomes
         val index: Map<String, IntArray> by lazy {
@@ -39,6 +39,7 @@ class Catalog(val repos: List<Repo>) {
 
     fun coverUrl(repo: String, name: String): String? {
         val r = byRepo[repo] ?: return null
+        if (r.sha.isEmpty()) return null  // catálogo moderno (Wikidata): só nomes, sem capas no libretro
         val path = URLEncoder.encode("$name.png", "UTF-8").replace("+", "%20")
         return "https://raw.githubusercontent.com/libretro-thumbnails/$repo/${r.sha}/Named_Boxarts/$path"
     }
@@ -70,6 +71,17 @@ class Catalog(val repos: List<Repo>) {
             .map { (_, g) -> g.sortedWith(compareBy<Match>({ bad.containsMatchIn(it.nomeAcervo) }, { regionRank(it.nomeAcervo, pref) }, { it.nomeAcervo.length })).first().copy(score = g.maxOf { it.score }) }
             .sortedWith(compareByDescending<Match> { Math.round(it.score * 50) }.thenBy { it.titulo.length })
             .take(limit)
+    }
+
+    /** Junta outro catálogo (ex.: o dos consoles atuais) a este. */
+    fun plus(o: Catalog): Catalog = Catalog(repos.filter { r -> o.repos.none { it.repo == r.repo } } + o.repos)
+
+    /** Data de lançamento (aaaa-mm-dd) que veio no catálogo, para jogos dos consoles atuais. */
+    fun releaseDate(repo: String, nome: String): String? {
+        val r = byRepo[repo] ?: return null
+        val ds = r.datas ?: return null
+        val m = search(nome, listOf(repo), limit = 1, minScore = 0.9).firstOrNull() ?: return null
+        return ds.getOrNull(r.names.indexOf(m.nomeAcervo))?.ifBlank { null }
     }
 
     /** Melhor capa automática para um jogo da coleção (null se nada parecido o bastante). */
@@ -108,8 +120,9 @@ class Catalog(val repos: List<Repo>) {
             val txt = (if (gz) GZIPInputStream(b) else b).bufferedReader(Charsets.UTF_8).readText()
             val o = JSONObject(txt); val arr = o.getJSONArray("repos")
             val list = (0 until arr.length()).map { i ->
-                val r = arr.getJSONObject(i); val ns = r.getJSONArray("names")
-                Repo(r.getString("repo"), r.getString("nome"), r.getString("sha"), (0 until ns.length()).map { ns.getString(it) })
+                val r = arr.getJSONObject(i); val ns = r.getJSONArray("names"); val ds = r.optJSONArray("datas")
+                Repo(r.getString("repo"), r.getString("nome"), r.optString("sha"), (0 until ns.length()).map { ns.getString(it) },
+                    ds?.let { a -> (0 until a.length()).map { a.optString(it) } })
             }
             return Catalog(list)
         }

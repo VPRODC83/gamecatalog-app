@@ -18,7 +18,10 @@ object Identify {
         "patent", "pending", "this", "is", "not", "to", "be", "rented", "sold", "seal", "of", "and", "de", "do", "da", "e", "jogo", "jogos",
         "manual", "instrucoes", "instructions", "warning", "aviso", "atari", "activision", "konami", "capcom", "namco", "taito", "hudson",
         "squaresoft", "square", "enix", "rare", "midway", "acclaim", "ea", "sports", "ubisoft", "gameboy", "boy", "advance", "color", "everyone", "teen", "mature",
-        "esrb", "rating", "pending", "dts", "dolby", "digital", "stereo", "player", "players", "memory", "card", "block", "blocks", "disc", "disco", "cd", "dvd", "rom"
+        "esrb", "rating", "pending", "dts", "dolby", "digital", "stereo", "player", "players", "memory", "card", "block", "blocks", "disc", "disco", "cd", "dvd", "rom",
+        // consoles atuais e avisos das caixas modernas
+        "switch", "ps5", "xbox", "series", "one", "x", "s", "playstation5", "playstation4", "pegi", "usk", "cero", "classind", "online", "requires",
+        "download", "code", "key", "compatible", "enhanced", "upgrade", "free", "only", "on", "bluray", "blu", "ray", "game-key", "gamekey", "cartao"
     )
 
     /** Texto do bloco sem as palavras de marca/aviso; vazio quando não sobra nada útil. */

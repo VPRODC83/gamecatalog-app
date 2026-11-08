@@ -39,7 +39,12 @@ class AppModel(val ctx: Context, val auth: GoogleAuth) {
     init {
         scope.launch {
             val r = withContext(Dispatchers.IO) {
-                runCatching { (runCatching { ctx.assets.open("catalog.json") }.getOrNull() ?: ctx.assets.open("catalog.json.gz")).use { Catalog.load(it) } }
+                runCatching {
+                    val base = (runCatching { ctx.assets.open("catalog.json") }.getOrNull() ?: ctx.assets.open("catalog.json.gz")).use { Catalog.load(it) }
+                    // consoles atuais (PS4, PS5, Switch, Switch 2, Xbox One/Series): nomes do Wikidata
+                    val modern = runCatching { (runCatching { ctx.assets.open("modern.json") }.getOrNull() ?: ctx.assets.open("modern.json.gz")).use { Catalog.load(it) } }.getOrNull()
+                    if (modern != null) base.plus(modern) else base
+                }
             }
             catalog = r.getOrNull()
             serials = withContext(Dispatchers.IO) { runCatching { (runCatching { ctx.assets.open("serials.json") }.getOrNull() ?: ctx.assets.open("serials.json.gz")).use { io.github.vprodc83.gamecatalog.core.Serials.load(it) } }.getOrNull() }

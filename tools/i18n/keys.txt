@@ -356,3 +356,4 @@ Sem permissão da câmera. Libere nas configurações do Android para fotografar
 O app teve um erro da última vez
 Guardei o motivo. Enviar o relatório ajuda a corrigir o problema (não contém dados da planilha).
 Enviar o relatório
+Dica: em jogos de PS4, PS5, Switch, Switch 2 e Xbox, fotografe o código de barras da caixa: é o jeito mais certeiro.

@@ -119,7 +119,17 @@ class CoverResolver(private val m: AppModel) {
 
     // ---------------- datas de lançamento (ordenação da melhoria 12) ----------------
 
-    fun date(item: Item): String? = synchronized(dates) { dates.optString(item.chave).ifBlank { null } }
+    fun date(item: Item): String? = synchronized(dates) { dates.optString(item.chave).ifBlank { null } } ?: offlineDate(item)
+
+    // consoles atuais: a data já vem no catálogo do Wikidata embutido no app (sem internet)
+    private val offline = HashMap<String, String?>()
+    private fun offlineDate(item: Item): String? {
+        val repo = m.repo.platformOf(item.console); if (!repo.startsWith("@")) return null
+        synchronized(offline) { if (offline.containsKey(item.chave)) return offline[item.chave] }
+        val d = runCatching { m.catalog?.releaseDate(repo, item.nome) }.getOrNull()
+        synchronized(offline) { offline[item.chave] = d }
+        return d
+    }
     fun dateTried(item: Item): Boolean = synchronized(dates) { dates.has(item.chave) }
     private fun setDate(item: Item, d: String?) { synchronized(dates) { dates.put(item.chave, d ?: "") }; runCatching { datesFile.writeText(synchronized(dates) { dates.toString() }) } }
 

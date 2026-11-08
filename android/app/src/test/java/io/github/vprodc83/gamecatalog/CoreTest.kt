@@ -10,6 +10,7 @@ import io.github.vprodc83.gamecatalog.google.Sheets
 import io.github.vprodc83.gamecatalog.ui.Updates
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.BeforeClass
@@ -55,6 +56,35 @@ class CoreTest {
             Identify.Block("LICENSED BY NINTENDO", 0.05f, 0.9f, 0.45f, 0.95f))
         val f = Identify.find(cat, blocks, blocks.joinToString("\n") { it.text }, emptyList())
         assertEquals(listOf("Donkey Kong Country", "Super Mario World"), f.map { it.match.tituloLimpo })
+    }
+
+    /** Melhoria 22: PS5, Switch 2 e Switch pelo catálogo do Wikidata e pelos códigos impressos. */
+    @Test fun modernConsoles() {
+        val modern = File("src/main/assets/modern.json.gz").inputStream().use { Catalog.load(it) }
+        val all = cat.plus(modern)
+        assertEquals("@PS5", Platforms.repoOf("PS5")); assertEquals("@NSW2", Platforms.repoOf("NSW2")); assertEquals("@NSW", Platforms.repoOf("NSW"))
+        assertEquals("@NSW2", Platforms.repoOf("SWITCH 2")); assertEquals("@PS4", Platforms.repoOf("PS4"))
+        assertEquals("@PS5", Platforms.fromPrintedText("PPSA-01284").first())
+        assertEquals("@NSW", Platforms.fromPrintedText("HAC-P-AAACA").first())
+        assertEquals("@NSW2", Platforms.fromPrintedText("NINTENDO SWITCH 2\nBEE-P-AAAAA").first())
+        assertFalse(Platforms.fromPrintedText("PLAYSTATION 5").contains("Sony_-_PlayStation"))
+        assertTrue(Platforms.fromPrintedText("Super Mario Odyssey").isEmpty())
+        assertEquals("Magnavox_-_Odyssey2", Platforms.fromPrintedText("PHILIPS ODYSSEY").first())
+        // caixa do Switch 2, com o console do texto impresso
+        val b2 = listOf(Identify.Block("NINTENDO SWITCH 2", .1f, .02f, .9f, .08f), Identify.Block("MARIO KART WORLD", .1f, .3f, .9f, .4f))
+        val f2 = Identify.find(all, b2, b2.joinToString("\n") { it.text }, emptyList())
+        assertEquals("Mario Kart World", f2.first().match.tituloLimpo); assertEquals("@NSW2", f2.first().match.repo)
+        // caixa de PS5 só com o código do produto
+        val b5 = listOf(Identify.Block("Marvel's Spider-Man 2", .1f, .3f, .9f, .4f), Identify.Block("PPSA 03016", .1f, .9f, .4f, .95f))
+        val f5 = Identify.find(all, b5, b5.joinToString("\n") { it.text }, emptyList())
+        assertEquals("@PS5", f5.first().match.repo); assertTrue(f5.first().match.tituloLimpo.contains("Spider-Man 2"))
+        // Switch 1, sem console impresso, mas o console está na coleção
+        val b1 = listOf(Identify.Block("Super Mario Odyssey", .1f, .3f, .9f, .4f))
+        assertEquals("@NSW", Identify.find(all, b1, "Super Mario Odyssey", listOf("@NSW")).first().match.repo)
+        // sem capa do libretro, mas com data de lançamento
+        assertNull(all.coverUrl("@NSW2", "Mario Kart World"))
+        assertEquals("2025-06-05", all.releaseDate("@NSW2", "Mario Kart World"))
+        assertTrue(all.repo("@NSW")!!.names.size > 3000)
     }
 
     @Test fun pricechartingParse() {

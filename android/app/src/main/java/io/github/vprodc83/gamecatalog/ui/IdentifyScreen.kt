@@ -89,7 +89,16 @@ fun cleanClip(t: String): String = t.lineSequence().map { it.trim() }.firstOrNul
     .take(120).trim()
 
 /** Código de console da planilha que corresponde a um acervo do catálogo (ex.: acervo do SNES → "SNES"). */
-fun consoleFor(m: AppModel, repoId: String): String = m.repo.state.value.consoles.firstOrNull { m.repo.platformOf(it) == repoId } ?: ""
+fun consoleFor(m: AppModel, repoId: String): String {
+    if (repoId.isEmpty()) return ""
+    val st = m.repo.state.value
+    st.consoles.firstOrNull { m.repo.platformOf(it) == repoId }?.let { return it }
+    // console que ainda não tem jogo na coleção (ex.: o primeiro de Switch 2): procura nas opções da tabela
+    val c = st.config?.colecao
+    val opts = c?.let { m.repo.options(it.aba, it.console) }.orEmpty()
+    opts.firstOrNull { m.repo.platformOf(it) == repoId }?.let { return it }
+    return if (repoId.startsWith("@")) repoId.drop(1).let { v -> if (c != null) m.repo.snap(c.aba, c.console, v) else v } else ""
+}
 
 @Composable
 fun IdentifyScreen(m: AppModel, onOpen: (Item) -> Unit) {
@@ -150,8 +159,8 @@ fun IdentifyScreen(m: AppModel, onOpen: (Item) -> Unit) {
                     scope.launch {
                         val hit = withContext(Dispatchers.IO) { io.github.vprodc83.gamecatalog.core.Prices.byBarcode(code) } ?: return@launch
                         val repo = io.github.vprodc83.gamecatalog.core.Prices.repoOfPcConsole(hit.second)
-                        val cons = if (repo.startsWith("@")) repo.drop(1) else consoleFor(m, repo)
-                        val c = Cand(hit.first, cons, if (repo.startsWith("@")) cn(repo.drop(1)) else cat.label(repo), repo.removePrefix("@"), origem = "barras:$code")
+                        val cons = consoleFor(m, repo).ifBlank { repo.removePrefix("@") }
+                        val c = Cand(hit.first, cons, cat.repo(repo)?.nome ?: cn(repo.removePrefix("@")), repo, origem = "barras:$code")
                         if (cands.none { T.norm(it.titulo) == T.norm(c.titulo) }) { cands.add(0, c); keepIdentPhoto(c, r, true) }
                         status = tr("Código de barras {0}: {1}", code, hit.first)
                     }
@@ -161,6 +170,8 @@ fun IdentifyScreen(m: AppModel, onOpen: (Item) -> Unit) {
                     porCodigo.isNotEmpty() -> tr("Identificado pelo código impresso ({0}). Confira abaixo.", porCodigo.joinToString { it.code })
                     found.isNotEmpty() -> tr("Encontrei {0} jogo(s) pela etiqueta. Confira abaixo.", total)
                     r.barcodes.isNotEmpty() -> tr("Consultando o código de barras {0}…", r.barcodes.first())
+                    io.github.vprodc83.gamecatalog.core.Platforms.fromPrintedText(text).any { it.startsWith("@") } ->
+                        tr("Dica: em jogos de PS4, PS5, Switch, Switch 2 e Xbox, fotografe o código de barras da caixa: é o jeito mais certeiro.")
                     text.isBlank() -> tr("Não consegui ler texto na foto. Use o Google Lens ou a busca por nome.")
                     else -> tr("Li o texto, mas não reconheci o jogo. Use o Google Lens ou a busca por nome.")
                 }

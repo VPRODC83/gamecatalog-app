@@ -346,7 +346,7 @@ class Repo(private val dir: File, val sheets: Sheets) {
     }
 
     suspend fun setPlataforma(code: String, repo: String) { saveConfig(cfg.withPlataforma(Text.norm(code), repo)) }
-    fun platformOf(console: String): String = _state.value.config?.plataformas?.get(Text.norm(console)) ?: Platforms.repoOf(console)
+    fun platformOf(console: String): String = _state.value.config?.plataformas?.get(Text.norm(console))?.ifEmpty { null } ?: Platforms.repoOf(console)
 
     data class Found(val item: Item, val score: Double)
 
