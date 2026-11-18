@@ -87,6 +87,17 @@ class CoreTest {
         assertTrue(all.repo("@NSW")!!.names.size > 3000)
     }
 
+    /** O mesmo jogo em nacionalidades diferentes: regiões escritas de jeitos diferentes viram o mesmo grupo. */
+    @Test fun regionsGroupVersions() {
+        val R = io.github.vprodc83.gamecatalog.core.Regions
+        assertEquals("JP", R.group("JAP")); assertEquals("JP", R.group("Japão")); assertEquals("JP", R.group("NTSC-J"))
+        assertEquals("US", R.group("USA")); assertEquals("US", R.group("US")); assertEquals("BR", R.group("Brasil")); assertEquals("EU", R.group("PAL"))
+        assertTrue(R.same("USA", "US")); assertFalse(R.same("JAP", "USA")); assertTrue(R.same("", "JAP"))
+        assertEquals("US", R.fromCatalogName("Super Mario World (USA)")); assertEquals("JP", R.fromCatalogName("Super Mario World (Japan)"))
+        assertEquals("US", R.fromCatalogName("Sonic (USA, Europe)")); assertEquals("", R.fromCatalogName("Sonic"))
+        assertEquals("EU", R.fromPcConsole("pal-super-nintendo")); assertEquals("JP", R.fromPcConsole("jp-super-famicom")); assertEquals("US", R.fromPcConsole("super-nintendo"))
+    }
+
     @Test fun pricechartingParse() {
         val html = """<td id="used_price"><span class="price js-price">$45.10</span></td><td id="complete_price"><span class="price">$1,120.00</span></td><td id="new_price"><span>N/A</span></td>"""
         val (l, c, n) = Prices.parseProduct(html)

@@ -357,3 +357,21 @@ O app teve um erro da última vez
 Guardei o motivo. Enviar o relatório ajuda a corrigir o problema (não contém dados da planilha).
 Enviar o relatório
 Dica: em jogos de PS4, PS5, Switch, Switch 2 e Xbox, fotografe o código de barras da caixa: é o jeito mais certeiro.
+{0} (linha {1})
+sem região
+Você já possui esse jogo em versão {0}.
+Escolha a região para registrar outra versão.
+Esta seria uma segunda cópia da mesma versão.
+Esta entra como outra versão.
+Região (versão)
+Detalhes
+Identificar pela foto
+Jogos encontrados ({0})
+Não achou?
+Na sua planilha
+linha {0}
+No catálogo
+Versão: {0}
+O que fazer
+Comprei outra versão
+Pôr na coleção (outra versão)

@@ -62,7 +62,8 @@ fun MissingCoversDialog(m: AppModel, onClose: () -> Unit) {
     @Suppress("UNUSED_VARIABLE") val v = m.resolver.version
     val scope = rememberCoroutineScope()
     val all = m.repo.state.value.of(Lista.COLECAO).distinctBy { it.chave }
-    val missing = all.filter { m.coverFor(it) == null }
+    // a capa vale para o jogo (console + nome): duas versões do mesmo jogo aparecem uma vez só
+    val missing = all.filter { m.coverFor(it) == null }.distinctBy { it.chave }
     var open by remember { mutableStateOf<String?>(null) }
     var running by remember { mutableStateOf(false) }
     var done by remember { mutableStateOf(0) }

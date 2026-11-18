@@ -27,6 +27,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import io.github.vprodc83.gamecatalog.core.Prices
+import io.github.vprodc83.gamecatalog.core.Regions
 import io.github.vprodc83.gamecatalog.data.Item
 import io.github.vprodc83.gamecatalog.data.Lista
 import io.github.vprodc83.gamecatalog.data.Repo
@@ -75,7 +76,33 @@ fun RegionField(m: AppModel, label: String, value: String, onChange: (String) ->
 
 /** Valor inicial já ajustado às opções da coleção (ex.: FC → FAMICOM, USA → US). */
 fun snapConsole(m: AppModel, v: String) = m.repo.state.value.config?.colecao?.let { m.repo.snap(it.aba, it.console, v) } ?: v
-fun snapRegion(m: AppModel, v: String) = m.repo.state.value.config?.colecao?.let { if (it.regiao >= 0) m.repo.snap(it.aba, it.regiao, v) else v } ?: v
+fun snapRegion(m: AppModel, v: String): String {
+    val c = m.repo.state.value.config?.colecao ?: return v
+    if (c.regiao < 0 || v.isBlank()) return v
+    // mesma região escrita de outro jeito (JP → JAP, USA → US, Brazil → BR…)
+    val g = Regions.group(v)
+    m.repo.options(c.aba, c.regiao)?.firstOrNull { g.isNotEmpty() && Regions.group(it) == g }?.let { return it }
+    return m.repo.snap(c.aba, c.regiao, v)
+}
+
+/** "JAP (linha 12), US (linha 40)": as versões que você já tem. */
+fun versoes(list: List<Item>): String = list.joinToString(", ") { tr("{0} (linha {1})", it.regiao.ifBlank { tr("sem região") }, it.linha) }
+
+/**
+ * Aviso de versão: você já tem o jogo? Em qual região? A nova linha seria outra versão ou uma segunda cópia
+ * da mesma? Nada é bloqueado: o mesmo jogo pode ser registrado em nacionalidades diferentes.
+ */
+@Composable
+fun VersionNotice(m: AppModel, have: List<Item>, regiao: String) {
+    if (have.isEmpty()) return
+    val temRegiao = (m.repo.state.value.config?.colecao?.regiao ?: -1) >= 0
+    val txt = tr("Você já possui esse jogo em versão {0}.", versoes(have))
+    when {
+        regiao.isBlank() && temRegiao -> Text(txt + " " + tr("Escolha a região para registrar outra versão."), color = Warn, style = MaterialTheme.typography.bodySmall)
+        have.any { Regions.same(it.regiao, regiao) } -> Text(txt + " " + tr("Esta seria uma segunda cópia da mesma versão."), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+        else -> Text(txt + " " + tr("Esta entra como outra versão."), color = Info, style = MaterialTheme.typography.bodySmall)
+    }
+}
 
 @Composable
 private fun Field(label: String, value: String, onChange: (String) -> Unit) =
@@ -91,37 +118,52 @@ fun ConfirmDialog(title: String, confirm: String, onClose: () -> Unit, enabled: 
 }
 
 @Composable
-fun BuyDialog(m: AppModel, console0: String, nome0: String, want: Item?, onClose: () -> Unit) {
+fun BuyDialog(m: AppModel, console0: String, nome0: String, want: Item?, regiao0: String = "", onClose: () -> Unit) {
     var console by remember { mutableStateOf(snapConsole(m, console0)) }; var nome by remember { mutableStateOf(nome0) }
-    var regiao by remember { mutableStateOf(snapRegion(m, want?.regiao ?: "")) }; var obs by remember { mutableStateOf("") }
+    var regiao by remember { mutableStateOf(snapRegion(m, want?.regiao?.ifBlank { null } ?: regiao0)) }; var obs by remember { mutableStateOf("") }
     val cfg = m.repo.state.value.config
+    val have = remember(nome, console) { m.repo.find(nome, console.ifBlank { null }).filter { it.item.lista == Lista.COLECAO }.map { it.item } }
     ConfirmDialog(tr("Comprei"), tr("Anotar na planilha"), onClose, enabled = nome.isNotBlank(), onConfirm = {
         onClose(); m.run { val w = m.repo.buy(console, nome.trim(), regiao, obs, want); m.repo.refresh(); m.message = w ?: tr("Anotado em {0}. Quando chegar, toque em Recebi.", cfg?.compras) }
     }) {
         ConsoleField(m, console) { console = it }
         Field(tr("Nome"), nome) { nome = it }
-        RegionField(m, tr("Região (opcional)"), regiao) { regiao = it }
+        RegionField(m, tr("Região (versão)"), regiao) { regiao = it }
+        VersionNotice(m, have, regiao)
         Field(tr("Observação (onde, preço…)"), obs) { obs = it }
         Hint(tr("Vai para a aba {0} como uma linha nova.", cfg?.compras ?: "COMPRAS") + if (want != null) tr(" Na aba {0}, a linha {1} será marcada COMPRADO.", cn(want.aba), want.linha) else "")
     }
 }
 
-/** Jogo novo na coleção: todas as colunas de GAMES, com os menus da tabela; confere antes de gravar. */
+/**
+ * Jogo novo na coleção: primeiro Console, Nome e Região (a versão), depois as outras colunas de GAMES em
+ * "Detalhes", com os menus da tabela e o nome de cada coluna; confere antes de gravar.
+ * O mesmo jogo pode entrar de novo em outra região: o aviso diz o que você já tem.
+ */
 @Composable
-fun AddCollectionDialog(m: AppModel, console0: String, nome0: String, onClose: () -> Unit) {
+fun AddCollectionDialog(m: AppModel, console0: String, nome0: String, regiao0: String = "", onClose: () -> Unit) {
     val c = m.repo.state.value.config?.colecao ?: return
-    val vals = remember { mutableStateListOf<String>().apply { addAll(m.repo.emptyCollectionRow(console0, nome0, "")) } }
+    val vals = remember { mutableStateListOf<String>().apply { addAll(m.repo.emptyCollectionRow(console0, nome0, snapRegion(m, regiao0))) } }
     var review by remember { mutableStateOf(false) }
-    val dup = remember(vals[c.nome], vals[c.console]) { m.repo.find(vals[c.nome], vals[c.console].ifBlank { null }).filter { it.item.lista == Lista.COLECAO } }
-    fun label(i: Int) = "${Sheets.col(i)} · ${m.colName(i)}"
+    val have = remember(vals[c.nome], vals[c.console]) { m.repo.find(vals[c.nome], vals[c.console].ifBlank { null }).filter { it.item.lista == Lista.COLECAO }.map { it.item } }
+    val principais = listOfNotNull(c.console, c.nome, c.regiao.takeIf { it >= 0 })
+    val detalhes = vals.indices.filter { it !in principais }
+    fun label(i: Int) = m.colName(i).ifBlank { tr("Coluna {0}", Sheets.col(i)) }
     if (!review) ConfirmDialog(tr("Novo jogo na coleção"), tr("Revisar"), onClose, enabled = vals[c.nome].isNotBlank() && vals[c.console].isNotBlank(), onConfirm = { review = true }) {
-        vals.indices.forEach { i -> if (i == c.console) ConsoleField(m, vals[i]) { vals[i] = it } else ColField(m, c.aba, i, label(i), vals[i]) { vals[i] = it } }
-        dup.firstOrNull()?.let { Text(tr("Atenção: já existe {0} na coleção (linha {1}).", it.item.nome, it.item.linha), color = MaterialTheme.colorScheme.error) }
+        ConsoleField(m, vals[c.console]) { vals[c.console] = it }
+        ColField(m, c.aba, c.nome, tr("Nome"), vals[c.nome]) { vals[c.nome] = it }
+        if (c.regiao >= 0) ColField(m, c.aba, c.regiao, tr("Região (versão)"), vals[c.regiao]) { vals[c.regiao] = it }
+        VersionNotice(m, have, if (c.regiao >= 0) vals[c.regiao] else "")
+        if (detalhes.isNotEmpty()) {
+            SectionTitle(tr("Detalhes"))
+            detalhes.forEach { i -> ColField(m, c.aba, i, label(i), vals[i]) { vals[i] = it } }
+        }
     } else ConfirmDialog(tr("Incluir em {0}?", c.aba), tr("Incluir linha"), { review = false }, onConfirm = {
         onClose(); val v = vals.toList()
         m.run { m.repo.addToCollection(v); m.repo.refresh(); m.message = tr("Incluído na coleção.") }
     }) {
-        vals.forEachIndexed { i, v -> if (v.isNotBlank()) Text("${m.colName(i)}: ${if (i == c.console) cn(v) else v}") }
+        (principais + detalhes).forEach { i -> val v = vals[i]; if (v.isNotBlank()) Text("${label(i)}: ${if (i == c.console) cn(v) else v}") }
+        if (have.isNotEmpty()) Hint(tr("Você já possui esse jogo em versão {0}.", versoes(have)))
         Hint(tr("Será uma linha nova no fim da aba {0}. Nenhuma linha existente é alterada.", c.aba))
     }
 }

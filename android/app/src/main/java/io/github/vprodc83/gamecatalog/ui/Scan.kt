@@ -38,10 +38,11 @@ fun findMissing(m: AppModel): List<Missing> {
     val pend = st.of(Lista.COMPRADO)
     val seen = HashSet<String>()
     return (st.wantedBought + st.received).mapNotNull { it0 ->
-        val inGames = m.repo.find(it0.nome, it0.console.ifBlank { null }).any { it.item.lista == Lista.COLECAO }
+        // outra região é outra versão: só conta como "já está" se for a mesma região (ou se uma delas não foi informada)
+        val inGames = m.repo.find(it0.nome, it0.console.ifBlank { null }).any { it.item.lista == Lista.COLECAO && io.github.vprodc83.gamecatalog.core.Regions.same(it.item.regiao, it0.regiao) }
         if (inGames) return@mapNotNull null
         val row = m.repo.emptyCollectionRow(it0.console, it0.nome, it0.regiao)
-        val key = T.norm(row[c.console]) + "|" + T.norm(it0.nome)
+        val key = T.norm(row[c.console]) + "|" + T.norm(it0.nome) + "|" + io.github.vprodc83.gamecatalog.core.Regions.group(it0.regiao)
         if (!seen.add(key)) return@mapNotNull null
         val pendente = it0.lista == Lista.PROCURADO && pend.any { p -> T.score(p.nome, it0.nome) >= 0.9 }
         Missing(it0, row, pendente)

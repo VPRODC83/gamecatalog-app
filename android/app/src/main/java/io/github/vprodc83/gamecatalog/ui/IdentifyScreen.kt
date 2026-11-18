@@ -24,6 +24,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -53,6 +54,7 @@ import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import io.github.vprodc83.gamecatalog.core.Catalog
 import io.github.vprodc83.gamecatalog.core.Identify
+import io.github.vprodc83.gamecatalog.core.Regions
 import io.github.vprodc83.gamecatalog.core.Text as T
 import io.github.vprodc83.gamecatalog.data.Item
 import io.github.vprodc83.gamecatalog.data.Lista
@@ -63,7 +65,8 @@ import kotlinx.coroutines.withContext
 import java.io.File
 
 /** Um jogo candidato mostrado na tela de identificação. */
-data class Cand(val titulo: String, val console: String, val plataforma: String, val repo: String, val alternativas: List<Catalog.Match> = emptyList(), val origem: String, val box: Identify.Block? = null)
+data class Cand(val titulo: String, val console: String, val plataforma: String, val repo: String, val alternativas: List<Catalog.Match> = emptyList(), val origem: String, val box: Identify.Block? = null,
+                val regiao: String = "")  // versão (região) quando ela é conhecida: código impresso, código de barras
 
 /** Lê o texto da foto no próprio aparelho (ML Kit) e devolve os blocos com a posição relativa. */
 suspend fun readText(ctx: Context, uri: Uri): Pair<List<Identify.Block>, String> {
@@ -143,7 +146,7 @@ fun IdentifyScreen(m: AppModel, onOpen: (Item) -> Unit) {
                 val repos = m.repo.state.value.consoles.map { m.repo.platformOf(it) }.filter { it.isNotEmpty() }.distinct()
                 // 1º código do produto impresso (exato, sem internet); 2º leitura do nome na etiqueta
                 val porCodigo = m.serials?.find(text) ?: emptyList()
-                porCodigo.forEach { h -> val t = Catalog.cleanTitle(h.nome); cands.add(Cand(t, consoleFor(m, h.repo), cat.label(h.repo), h.repo, origem = "codigo:" + h.code)) }
+                porCodigo.forEach { h -> val t = Catalog.cleanTitle(h.nome); cands.add(Cand(t, consoleFor(m, h.repo), cat.label(h.repo), h.repo, origem = "codigo:" + h.code, regiao = Regions.fromCatalogName(h.nome))) }
                 val found = withContext(Dispatchers.Default) { Identify.find(cat, blocks, text, repos) }
                 found.filter { f0 -> cands.none { T.norm(it.titulo) == T.norm(f0.match.tituloLimpo) && it.repo == f0.match.repo } }
                     .forEach { cands.add(Cand(it.match.tituloLimpo, consoleFor(m, it.match.repo), it.match.plataforma, it.match.repo, it.alternativas, "etiqueta", it.block)) }
@@ -160,7 +163,7 @@ fun IdentifyScreen(m: AppModel, onOpen: (Item) -> Unit) {
                         val hit = withContext(Dispatchers.IO) { io.github.vprodc83.gamecatalog.core.Prices.byBarcode(code) } ?: return@launch
                         val repo = io.github.vprodc83.gamecatalog.core.Prices.repoOfPcConsole(hit.second)
                         val cons = consoleFor(m, repo).ifBlank { repo.removePrefix("@") }
-                        val c = Cand(hit.first, cons, cat.repo(repo)?.nome ?: cn(repo.removePrefix("@")), repo, origem = "barras:$code")
+                        val c = Cand(hit.first, cons, cat.repo(repo)?.nome ?: cn(repo.removePrefix("@")), repo, origem = "barras:$code", regiao = Regions.fromPcConsole(hit.second))
                         if (cands.none { T.norm(it.titulo) == T.norm(c.titulo) }) { cands.add(0, c); keepIdentPhoto(c, r, true) }
                         status = tr("Código de barras {0}: {1}", code, hit.first)
                     }
@@ -205,10 +208,17 @@ fun IdentifyScreen(m: AppModel, onOpen: (Item) -> Unit) {
         owner.lifecycle.addObserver(obs); onDispose { owner.lifecycle.removeObserver(obs) }
     }
 
+    fun pick(c: Cand) {
+        if (cands.none { it.repo == c.repo && T.norm(it.titulo) == T.norm(c.titulo) }) cands.add(0, c)
+        search = ""; marcadas.clear()  // a busca fecha e o jogo escolhido aparece em "Jogos encontrados"
+    }
+
+    // ordem: 1 foto (e as palavras dela) · 2 busca pelo nome · 3 jogos encontrados · 4 Google Lens, se nada servir
     LazyColumn(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
             Card(Modifier.fillMaxWidth().padding(top = 12.dp)) {
                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    SectionTitle(tr("Identificar pela foto"))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(onClick = {
                             val f = File(File(ctx.cacheDir, "fotos").apply { mkdirs() }, "foto-${System.currentTimeMillis()}.jpg")
@@ -227,12 +237,6 @@ fun IdentifyScreen(m: AppModel, onOpen: (Item) -> Unit) {
                         Hint(tr("Toque nas palavras da foto para montar a busca (o resultado aparece em Buscar pelo nome, abaixo)."))
                     } else photo?.let { AsyncImage(model = it, contentDescription = tr("Foto"), modifier = Modifier.fillMaxWidth().heightIn(max = 260.dp)) }
                     Row { if (reading) CircularProgressIndicator(Modifier.width(20.dp).padding(end = 8.dp)); Hint(status) }
-                    photo?.let { f ->
-                        OutlinedButton(onClick = { clipStamp = readClip(ctx)?.second ?: -1L; clip = null; lensPending = openLens(ctx, fileUri(ctx, f)) }, modifier = Modifier.fillMaxWidth()) {
-                            Text(tr("Perguntar ao Google Lens"))
-                        }
-                        Hint(tr("No Lens, segure o dedo no nome do jogo (no texto da foto ou num resultado), toque em Copiar e volte para cá: o app oferece o nome copiado. Se não oferecer, use o botão Colar em Buscar pelo nome."))
-                    }
                 }
             }
         }
@@ -249,6 +253,15 @@ fun IdentifyScreen(m: AppModel, onOpen: (Item) -> Unit) {
                 }
             }
         }
+        item {
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SectionTitle(tr("Buscar pelo nome"))
+                    NameSearch(m, search, onQuery = { search = it }) { c -> pick(c) }
+                }
+            }
+        }
+        if (cands.isNotEmpty() || parecidos.isNotEmpty()) item { SectionTitle(tr("Jogos encontrados ({0})", cands.size)) }
         if (parecidos.isNotEmpty()) item {
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -263,11 +276,16 @@ fun IdentifyScreen(m: AppModel, onOpen: (Item) -> Unit) {
             }
         }
         items(cands, key = { it.repo + it.titulo }) { c -> CandCard(m, c, onOpen, onReplace = { nc -> val i = cands.indexOf(c); if (i >= 0) cands[i] = nc }) }
-        item {
-            Card(Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(tr("Buscar pelo nome"), fontWeight = FontWeight.SemiBold)
-                    NameSearch(m, search, onQuery = { search = it }) { c -> cands.add(0, c) }
+        photo?.let { f ->
+            item {
+                Card(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        SectionTitle(tr("Não achou?"))
+                        OutlinedButton(onClick = { clipStamp = readClip(ctx)?.second ?: -1L; clip = null; lensPending = openLens(ctx, fileUri(ctx, f)) }, modifier = Modifier.fillMaxWidth()) {
+                            Text(tr("Perguntar ao Google Lens"))
+                        }
+                        Hint(tr("No Lens, segure o dedo no nome do jogo (no texto da foto ou num resultado), toque em Copiar e volte para cá: o app oferece o nome copiado. Se não oferecer, use o botão Colar em Buscar pelo nome."))
+                    }
                 }
             }
         }
@@ -279,7 +297,8 @@ fun IdentifyScreen(m: AppModel, onOpen: (Item) -> Unit) {
 /** Busca por nome (ou parte dele) na planilha e no catálogo; ao escolher, vira um cartão de candidato. */
 @Composable
 fun NameSearch(m: AppModel, query: String, onQuery: (String) -> Unit, onPick: (Cand) -> Unit) {
-    val consoles = m.repo.state.value.consoles
+    val st by m.repo.state.collectAsState()
+    val consoles = st.consoles
     var console by remember { mutableStateOf("") }
     val ctx = LocalContext.current
     OutlinedTextField(value = query, onValueChange = onQuery, label = { Text(tr("Nome do jogo ou parte dele")) }, singleLine = true, leadingIcon = { Icon(Icons.Default.Search, null) }, modifier = Modifier.fillMaxWidth(),
@@ -287,57 +306,93 @@ fun NameSearch(m: AppModel, query: String, onQuery: (String) -> Unit, onPick: (C
     if (m.catalog == null) Hint(m.catalogError ?: tr("Carregando o catálogo de jogos…"))
     Picker(tr("Console"), console, listOf("" to tr("Todos os consoles")) + consoles.map { it to cn(it) }) { console = it }
     val q = query.trim()
-    if (q.length >= 2) {
-        val mine = m.repo.state.value.items.filter { (console.isEmpty() || m.repo.platformOf(it.console) == m.repo.platformOf(console)) && T.score(q, it.nome) >= 0.6 }
+    if (q.length < 2) return
+    val mine = remember(q, console, st) {
+        st.items.filter { (console.isEmpty() || m.repo.platformOf(it.console) == m.repo.platformOf(console)) && T.score(q, it.nome) >= 0.6 }
             .sortedByDescending { T.score(q, it.nome) }.take(6)
-        val repos = if (console.isEmpty()) consoles.map { m.repo.platformOf(it) }.filter { it.isNotEmpty() }.distinct() else listOfNotNull(m.repo.platformOf(console).ifEmpty { null })
-        val cat = m.catalog?.search(q, repos, limit = 10, minScore = 0.6) ?: emptyList()
-        mine.forEach { i -> TextButton(onClick = { onPick(Cand(i.nome, i.console, i.console, m.repo.platformOf(i.console), origem = "planilha")) }, modifier = Modifier.fillMaxWidth()) {
-            Column(Modifier.fillMaxWidth()) { Text(i.nome); Hint(tr("{0} · {1} · linha {2}", cn(i.console), tr(i.lista.titulo), i.linha)) } } }
-        cat.forEach { c -> TextButton(onClick = { onPick(Cand(c.tituloLimpo, console.ifEmpty { consoleFor(m, c.repo) }, c.plataforma, c.repo, origem = "busca")) }, modifier = Modifier.fillMaxWidth()) {
-            Column(Modifier.fillMaxWidth()) { Text(c.tituloLimpo); Hint(tr("Catálogo · {0}", c.plataforma)) } } }
-        if (mine.isEmpty() && cat.isEmpty()) Hint(tr("Nada parecido. Tente outro nome ou outro console."))
-        OutlinedButton(onClick = { onPick(Cand(q, console, console, m.repo.platformOf(console), origem = "digitado")) }) { Text(tr("Usar o nome digitado")) }
     }
+    // cada resultado do catálogo já diz se você tem o jogo, e em qual versão (região)
+    val cat = remember(q, console, st, m.catalog) {
+        val repos = if (console.isEmpty()) consoles.map { m.repo.platformOf(it) }.filter { it.isNotEmpty() }.distinct() else listOfNotNull(m.repo.platformOf(console).ifEmpty { null })
+        (m.catalog?.search(q, repos, limit = 8, minScore = 0.6) ?: emptyList()).map { c ->
+            c to m.repo.find(c.tituloLimpo, console.ifEmpty { consoleFor(m, c.repo) }.ifBlank { null }).map { it.item }
+        }
+    }
+    if (mine.isNotEmpty()) Hint(tr("Na sua planilha"))
+    mine.forEach { i -> TextButton(onClick = { onPick(Cand(i.nome, i.console, i.console, m.repo.platformOf(i.console), origem = "planilha", regiao = i.regiao)) }, modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.fillMaxWidth()) {
+            Text(i.nome)
+            Hint(listOf(tr(i.lista.titulo), cn(i.console), i.regiao.ifBlank { tr("sem região") }, tr("linha {0}", i.linha)).joinToString(" · "))
+        }
+    } }
+    if (cat.isNotEmpty()) Hint(tr("No catálogo"))
+    cat.forEach { (c, its) -> TextButton(onClick = { onPick(Cand(c.tituloLimpo, console.ifEmpty { consoleFor(m, c.repo) }, c.plataforma, c.repo, origem = "busca")) }, modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.fillMaxWidth()) {
+            Text(c.tituloLimpo); Hint(c.plataforma)
+            val have = its.filter { it.lista == Lista.COLECAO }
+            when {
+                have.isNotEmpty() -> Text(tr("Você já possui esse jogo em versão {0}.", versoes(have)), color = Ok, style = MaterialTheme.typography.labelSmall)
+                its.any { it.lista == Lista.COMPRADO } -> Text(tr("Já está nas compras"), color = Warn, style = MaterialTheme.typography.labelSmall)
+                its.any { it.lista == Lista.PROCURADO } -> Text(tr("Está nos procurados"), color = Info, style = MaterialTheme.typography.labelSmall)
+            }
+        }
+    } }
+    if (mine.isEmpty() && cat.isEmpty()) Hint(tr("Nada parecido. Tente outro nome ou outro console."))
+    OutlinedButton(onClick = { onPick(Cand(q, console, console, m.repo.platformOf(console), origem = "digitado")) }) { Text(tr("Usar o nome digitado")) }
 }
 
-/** Cartão de um jogo encontrado: se você já tem, se procura ou se já comprou, e as ações possíveis. */
+/**
+ * Cartão de um jogo encontrado, em três partes: o jogo (capa, nome, console, versão, como foi achado);
+ * o que já está na sua planilha (em quais versões você tem); e o que dá para fazer.
+ */
 @Composable
 fun CandCard(m: AppModel, c: Cand, onOpen: (Item) -> Unit, onReplace: (Cand) -> Unit) {
     val st by m.repo.state.collectAsState()
     val found = remember(c, st) { m.repo.find(c.titulo, c.console.ifEmpty { null }) }
-    val have = found.filter { it.item.lista == Lista.COLECAO }; val want = found.filter { it.item.lista == Lista.PROCURADO }; val buying = found.filter { it.item.lista == Lista.COMPRADO }
+    val have = found.filter { it.item.lista == Lista.COLECAO }.map { it.item }
+    val want = found.filter { it.item.lista == Lista.PROCURADO }; val buying = found.filter { it.item.lista == Lista.COMPRADO }
     var dialog by remember { mutableStateOf<String?>(null) }
     val cover = remember(c) { m.catalog?.let { cat -> cat.search(c.titulo, listOfNotNull(c.repo.ifEmpty { null }), limit = 1, minScore = 0.75).firstOrNull()?.let { cat.coverUrl(it.repo, it.nomeAcervo) } } }
+    val regiao = remember(c.regiao) { snapRegion(m, c.regiao) }
     Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            // 1 · o jogo
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Cover(cover, cn(c.console).ifEmpty { c.plataforma }, Modifier.width(84.dp), title = c.titulo)
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(c.titulo, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     Hint(listOf(cn(c.console), c.plataforma).filter { it.isNotBlank() }.distinct().joinToString(" · ").ifEmpty { tr("Console não identificado") })
-                    when {
-                        have.isNotEmpty() -> Pill(tr("Você já tem"), Ok)
-                        buying.isNotEmpty() -> Pill(tr("Já está nas compras"), Warn)
-                        want.isNotEmpty() -> Pill(tr("Está nos procurados"), Info)
-                        else -> Pill(tr("Você não tem"), MaterialTheme.colorScheme.primary)
-                    }
-                    Hint(when {
+                    if (regiao.isNotBlank()) Hint(tr("Versão: {0}", regiao))
+                    Text(when {
                         c.origem == "etiqueta" -> tr("Reconhecido pela etiqueta"); c.origem == "planilha" -> tr("Escolhido da sua planilha"); c.origem == "busca" -> tr("Escolhido no catálogo")
                         c.origem.startsWith("codigo:") -> tr("Identificado pelo código {0} (exato)", c.origem.substringAfter(':'))
                         c.origem == "capa" -> tr("Reconhecido pela imagem da capa")
                         c.origem.startsWith("barras:") -> tr("Identificado pelo código de barras {0}", c.origem.substringAfter(':'))
-                        else -> tr("Nome digitado") })
+                        else -> tr("Nome digitado") }, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
-            found.take(3).forEach { f -> TextButton(onClick = { onOpen(f.item) }) { Text(tr("{0}: {1} · {2} (linha {3})", tr(f.item.lista.titulo), cn(f.item.console), f.item.nome, f.item.linha)) } }
+            HorizontalDivider()
+            // 2 · na sua planilha
+            SectionTitle(tr("Na sua planilha"))
             Chips {
-                if (have.isEmpty() && buying.isEmpty()) {
-                    AssistChip(onClick = { dialog = "comprei" }, label = { Text(tr("Comprei")) })
-                    AssistChip(onClick = { dialog = "colecao" }, label = { Text(tr("Já tenho: pôr na coleção")) })
-                    if (want.isEmpty() && m.repo.state.value.config?.procurados?.isNotEmpty() == true) AssistChip(onClick = { dialog = "quero" }, label = { Text(tr("Quero (procurados)")) })
+                if (have.isNotEmpty()) Pill(tr("Você já tem"), Ok)
+                if (buying.isNotEmpty()) Pill(tr("Já está nas compras"), Warn)
+                if (want.isNotEmpty()) Pill(tr("Está nos procurados"), Info)
+                if (found.isEmpty()) Pill(tr("Você não tem"), MaterialTheme.colorScheme.primary)
+            }
+            if (have.isNotEmpty()) Text(tr("Você já possui esse jogo em versão {0}.", versoes(have)), style = MaterialTheme.typography.bodySmall)
+            found.take(4).forEach { f -> val i = f.item
+                TextButton(onClick = { onOpen(i) }) {
+                    Text(listOf(tr(i.lista.titulo), cn(i.console), i.regiao.ifBlank { tr("sem região") }, tr("linha {0}", i.linha)).joinToString(" · "))
                 }
-                if (have.isNotEmpty()) AssistChip(onClick = { dialog = "comprei" }, label = { Text(tr("Comprei outra cópia")) })
+            }
+            HorizontalDivider()
+            // 3 · o que fazer (o mesmo jogo pode entrar de novo em outra região)
+            SectionTitle(tr("O que fazer"))
+            Chips {
+                AssistChip(onClick = { dialog = "comprei" }, label = { Text(if (have.isEmpty()) tr("Comprei") else tr("Comprei outra versão")) })
+                AssistChip(onClick = { dialog = "colecao" }, label = { Text(if (have.isEmpty()) tr("Já tenho: pôr na coleção") else tr("Pôr na coleção (outra versão)")) })
+                if (found.isEmpty() && m.repo.state.value.config?.procurados?.isNotEmpty() == true) AssistChip(onClick = { dialog = "quero" }, label = { Text(tr("Quero (procurados)")) })
             }
             if (c.alternativas.isNotEmpty()) {
                 SectionTitle(tr("Pode ser também"))
@@ -347,8 +402,8 @@ fun CandCard(m: AppModel, c: Cand, onOpen: (Item) -> Unit, onReplace: (Cand) -> 
         }
     }
     when (dialog) {
-        "comprei" -> BuyDialog(m, c.console, c.titulo, want.firstOrNull()?.item) { dialog = null }
-        "colecao" -> AddCollectionDialog(m, c.console, c.titulo) { dialog = null }
+        "comprei" -> BuyDialog(m, c.console, c.titulo, want.firstOrNull()?.item, c.regiao) { dialog = null }
+        "colecao" -> AddCollectionDialog(m, c.console, c.titulo, c.regiao) { dialog = null }
         "quero" -> WantDialog(m, c.console, c.titulo) { dialog = null }
     }
 }
