@@ -47,7 +47,6 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    androidResources { noCompress += "tflite" }
     buildFeatures { compose = true; buildConfig = true }
     testOptions {
         unitTests.isIncludeAndroidResources = true
@@ -84,7 +83,7 @@ dependencies {
     implementation("androidx.camera:camera-view:1.4.2")
     implementation("androidx.camera:camera-mlkit-vision:1.4.2")
     // reconhecimento pela imagem da capa, no celular (melhoria 16)
-    implementation("com.google.mediapipe:tasks-vision:0.10.26.1")
+    implementation(project(":visao"))
     // leitura do texto das etiquetas no próprio aparelho (modelo embutido, sem internet)
     implementation("com.google.mlkit:text-recognition:16.0.1")
     // capas e páginas de preço

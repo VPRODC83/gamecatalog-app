@@ -13,6 +13,7 @@ import io.github.vprodc83.gamecatalog.google.Sheets
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -49,6 +50,8 @@ class AppModel(val ctx: Context, val auth: GoogleAuth) {
             catalog = r.getOrNull()
             serials = withContext(Dispatchers.IO) { runCatching { (runCatching { ctx.assets.open("serials.json") }.getOrNull() ?: ctx.assets.open("serials.json.gz")).use { io.github.vprodc83.gamecatalog.core.Serials.load(it) } }.getOrNull() }
             resolver.vgdb = withContext(Dispatchers.IO) { runCatching { (runCatching { ctx.assets.open("vgdb.json") }.getOrNull() ?: ctx.assets.open("vgdb.json.gz")).use { io.github.vprodc83.gamecatalog.core.CoverSources.Vgdb.load(it) } }.getOrNull() }
+            // pacotes de imagens: quando a planilha já disse quais consoles você tem, baixa o que faltar (no Wi-Fi)
+            scope.launch { runCatching { repo.state.first { it.consoles.isNotEmpty() }; imagens.autoDownload() } }
             catalogError = r.exceptionOrNull()?.let { tr("Não consegui abrir o catálogo de jogos ({0}). A busca pela planilha continua funcionando.", it.message) }
         }
     }
@@ -114,7 +117,8 @@ class AppModel(val ctx: Context, val auth: GoogleAuth) {
     }
     fun clearAutoCovers() { resolver.clear() }
     val resolver = CoverResolver(this)
-    val matcher by lazy { CoverMatcher(this) }
+    /** Reconhecimento por imagem: pacotes de pontos característicos por console (melhoria 24). */
+    val imagens by lazy { ImageRecognizer(this) }
 
     val covers = CoverUpdater(this)
     var showReview by mutableStateOf(false)

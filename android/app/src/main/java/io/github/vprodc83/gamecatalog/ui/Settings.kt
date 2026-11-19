@@ -4,10 +4,12 @@ import android.content.Context
 import android.content.Intent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -15,12 +17,14 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -186,7 +190,7 @@ fun SettingsScreen(m: AppModel, onChangeSheet: () -> Unit, onMapping: () -> Unit
                     TextButton(onClick = { openUrl(ctx, "https://vprodc83.github.io/termos.html") }) { Text(tr("Termos")) }
                     TextButton(onClick = { scope.launch { m.auth.signOut(); m.loggedIn = false; onSignedOut() } }) { Text(tr("Sair da conta")) }
                 }
-                Hint(tr("Identificação feita no próprio aparelho (leitura da etiqueta) e pelo Google Lens. Capas: libretro-thumbnails, Wikipédia, PriceCharting, VGDB, Tec Toy e TheGamesDB. Valores: PriceCharting. Datas de lançamento: Wikidata."))
+                Hint(tr("Identificação feita no próprio aparelho (leitura da etiqueta e reconhecimento por imagem) e pelo Google Lens. Imagens de referência de cartuchos, discos e capas: LaunchBox Games DB. Capas: libretro-thumbnails, Wikipédia, PriceCharting, VGDB, Tec Toy e TheGamesDB. Valores: PriceCharting. Datas de lançamento: Wikidata. Padrão do ORB: OpenCV (BSD, Willow Garage)."))
             }
         }
     }
@@ -253,36 +257,67 @@ private fun AddedColumnBox(m: AppModel) {
     }
 }
 
-/** Melhoria 16: prepara o reconhecimento pela imagem da capa (índice guardado só no celular). */
+/**
+ * Melhoria 24: reconhecimento por imagem (cartuchos, discos e capas). Um pacote por console, com os pontos
+ * característicos das imagens conhecidas; o app baixa os dos consoles da sua coleção.
+ */
 @Composable
 private fun CoverIndexCard(m: AppModel) {
-    val mt = m.matcher
-    val st by m.repo.state.collectAsState()
-    var console by remember { mutableStateOf("") }
+    val im = m.imagens
+    @Suppress("UNUSED_VARIABLE") val v = im.version
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val prefs = remember { ctx.getSharedPreferences("interface", android.content.Context.MODE_PRIVATE) }
+    var auto by remember { mutableStateOf(prefs.getBoolean("imagens_auto", true)) }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    LaunchedEffect(Unit) { if (im.manifest.isEmpty()) im.refreshManifest() }
+    val meus = im.myAcervos()
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            SectionTitle(tr("Reconhecimento pela capa"))
-            Hint(tr("Compara a foto com capas já conhecidas, no próprio celular. Ajuda quando a etiqueta não tem nome legível."))
-            Text(tr("{0} capas preparadas · {1}", mt.count, Storage.human(mt.sizeBytes())))
-            if (mt.running) {
-                androidx.compose.material3.LinearProgressIndicator(progress = { if (mt.total > 0) mt.done.toFloat() / mt.total else 0f }, modifier = Modifier.fillMaxWidth())
-                Hint(tr("{0} de {1}", mt.done, mt.total))
-                OutlinedButton(onClick = { mt.cancel() }) { Text(tr("Interromper")) }
-            } else {
-                OutlinedButton(onClick = { mt.buildFromLists() }) { Text(tr("Preparar com a minha coleção e listas")) }
-                val cat = m.catalog
-                val opts = st.consoles.mapNotNull { c -> val r = m.repo.platformOf(c); cat?.repo(r)?.takeIf { it.sha.isNotEmpty() }?.let { c to r } }.distinctBy { it.second }
-                if (opts.isNotEmpty()) {
-                    Picker(tr("Todos os jogos de um console"), console, listOf("" to tr("(escolha)")) + opts.map { it.first to cn(it.first) }) { console = it }
-                    opts.firstOrNull { it.first == console }?.let { (c, r) ->
-                        val n = cat?.repo(r)?.names?.size ?: 0
-                        Hint(tr("Cerca de {0} capas: baixa uns {1} e guarda uns {2}. Só no Wi-Fi.", n, Storage.human(n * 30_000L), Storage.human(n * 1_100L)))
-                        OutlinedButton(onClick = { mt.buildConsole(r, c) }) { Text(tr("Preparar {0}", cn(c))) }
+            SectionTitle(tr("Reconhecimento por imagem"))
+            Hint(tr("Compara a foto com fotos e scans de cartuchos, discos e capas, no próprio celular. Cada imagem vira só alguns KB de pontos característicos."))
+            var capas by remember { mutableStateOf(prefs.getBoolean("imagens_capas", false)) }
+            meus.forEach { a ->
+                Text(m.catalog?.repo(a)?.nome ?: a.removePrefix("@").substringAfter("_-_").replace("_-_", " ").replace('_', ' '), fontWeight = FontWeight.SemiBold)
+                val ps = im.packs(a)
+                if (ps.isEmpty()) Hint(tr("sem pacote por enquanto"))
+                ps.sortedBy { it.tipo != "midia" }.forEach { p ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(if (p.tipo == "midia") tr("Mídias (cartuchos e discos)") else tr("Capas"), style = MaterialTheme.typography.bodyMedium)
+                            Hint(when {
+                                im.outdated(p) -> tr("{0} imagens · atualização disponível", p.imagens)
+                                im.installed(p) -> tr("{0} imagens · {1}", p.imagens, Storage.human(im.file(p).length()))
+                                else -> tr("{0} imagens · {1} para baixar", p.imagens, Storage.human(p.bytes))
+                            })
+                        }
+                        if (im.installed(p)) TextButton(onClick = { im.delete(p) }) { Text(tr("Apagar")) }
+                        else if (!im.running) TextButton(onClick = { im.download(listOf(p), soWifi = false) }) { Text(tr("Baixar")) }
                     }
                 }
-                if (mt.count > 0) TextButton(onClick = { mt.clear() }) { Text(tr("Apagar o que foi preparado")) }
             }
-            mt.status?.let { Hint(it) }
+            if (meus.isEmpty()) Hint(tr("Os consoles aparecem aqui quando a planilha estiver carregada."))
+            if (im.running) {
+                androidx.compose.material3.LinearProgressIndicator(progress = { if (im.total > 0) im.done.toFloat() / im.total else 0f }, modifier = Modifier.fillMaxWidth())
+                Hint(tr("{0} de {1}", im.done, im.total))
+            } else {
+                val faltam = im.missing(capas)
+                if (faltam.isNotEmpty()) Button(onClick = { im.download(faltam, soWifi = false) }) {
+                    Text(tr("Baixar {0} pacote(s) · {1}", faltam.size, Storage.human(faltam.sumOf { it.bytes })))
+                }
+                TextButton(onClick = { scope.launch { im.refreshManifest() } }) { Text(tr("Procurar pacotes novos")) }
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                androidx.compose.material3.Switch(checked = capas, onCheckedChange = { capas = it; prefs.edit().putBoolean("imagens_capas", it).apply() })
+                Text(tr("Incluir as capas (pacotes maiores)"), Modifier.padding(start = 8.dp))
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                androidx.compose.material3.Switch(checked = auto, onCheckedChange = { auto = it; prefs.edit().putBoolean("imagens_auto", it).apply() })
+                Text(tr("Baixar sozinho no Wi-Fi"), Modifier.padding(start = 8.dp))
+            }
+            Text(tr("Fotos aprendidas: {0}", im.learnedCount))
+            Hint(tr("Quando você confirma o jogo de uma foto, ela vira referência: o mesmo cartucho passa a ser reconhecido na hora."))
+            if (im.learnedCount > 0) TextButton(onClick = { im.clearLearned() }) { Text(tr("Apagar as fotos aprendidas")) }
+            im.status?.let { Hint(it) }
         }
     }
 }

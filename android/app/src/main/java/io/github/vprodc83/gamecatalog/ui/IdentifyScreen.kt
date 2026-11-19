@@ -118,7 +118,16 @@ fun IdentifyScreen(m: AppModel, onOpen: (Item) -> Unit) {
     var lida by remember { mutableStateOf<Reading?>(null) }
     val marcadas = remember { mutableStateListOf<Int>() }
     var aoVivo by remember { mutableStateOf(false) }
-    val parecidos = remember { mutableStateListOf<CoverMatcher.Similar>() }
+    val parecidos = remember { mutableStateListOf<Cand>() }   // parecidos pela imagem (melhoria 24)
+    var porImagem by remember { mutableStateOf(false) }
+    val aprendidas = remember { HashSet<String>() }
+    // guarda a foto como referência do jogo confirmado (uma vez por foto e jogo)
+    fun aprender(c: Cand) {
+        val r = lida ?: return
+        if (c.origem.startsWith("imagem:") || c.titulo.isBlank()) return
+        if (!aprendidas.add((photo?.path ?: "") + "|" + c.repo + "|" + T.norm(c.titulo))) return
+        m.imagens.learn(r.bitmap, c.titulo, c.repo, c.regiao)
+    }
 
     /** Guarda o recorte da foto como capa provisória do jogo, se ele ainda não tem capa (melhoria 19). */
     fun keepIdentPhoto(c: Cand, r: Reading, sozinho: Boolean) {
@@ -151,11 +160,28 @@ fun IdentifyScreen(m: AppModel, onOpen: (Item) -> Unit) {
                 found.filter { f0 -> cands.none { T.norm(it.titulo) == T.norm(f0.match.tituloLimpo) && it.repo == f0.match.repo } }
                     .forEach { cands.add(Cand(it.match.tituloLimpo, consoleFor(m, it.match.repo), it.match.plataforma, it.match.repo, it.alternativas, "etiqueta", it.block)) }
                 cands.toList().forEach { keepIdentPhoto(it, r, cands.size == 1) }
-                // capas parecidas (melhoria 16), só se o índice já foi preparado em Ajustes
-                if (m.matcher.count > 0) scope.launch {
-                    val sim = runCatching { m.matcher.similar(r.bitmap) }.getOrDefault(emptyList())
-                    parecidos.clear(); parecidos.addAll(sim.filter { s0 -> cands.none { T.norm(it.titulo) == T.norm(s0.titulo) } })
-                    if (cands.isEmpty() && sim.isNotEmpty()) status = tr("Não li o nome, mas achei capas parecidas. Confira abaixo.")
+                // 4º a própria imagem: cartucho, disco ou capa (melhoria 24), em segundo plano
+                if (m.imagens.hasAny()) scope.launch {
+                    porImagem = true
+                    try {
+                        val meus = m.imagens.myAcervos()
+                        val impressos = io.github.vprodc83.gamecatalog.core.Platforms.fromPrintedText(text).filter { m.imagens.installed(it) }
+                        val res = runCatching { m.imagens.search(r.bitmap, impressos.ifEmpty { meus }) }.getOrDefault(emptyList())
+                        val achados = res.map { a ->
+                            val reg = Regions.group(a.e.regiao).takeIf { it != "WORLD" } ?: ""
+                            Cand(a.e.nome, consoleFor(m, a.e.acervo), cat.repo(a.e.acervo)?.nome ?: cn(a.e.acervo.removePrefix("@")), a.e.acervo, origem = "imagem:${a.pontos}", regiao = reg)
+                        }
+                        // seguro: muitos pontos e bem à frente do segundo jogo (empate = molde do cartucho, não a arte)
+                        val p1 = res.firstOrNull()?.pontos ?: 0; val p2 = res.getOrNull(1)?.pontos ?: 0
+                        val seguro = achados.firstOrNull()?.takeIf { p1 >= ImageRecognizer.SEGURO && p2 <= p1 * 0.6 }
+                        if (seguro != null && cands.none { T.norm(it.titulo) == T.norm(seguro.titulo) && it.repo == seguro.repo }) cands.add(0, seguro)
+                        parecidos.clear(); parecidos.addAll(achados.filter { a -> a !== seguro && cands.none { T.norm(it.titulo) == T.norm(a.titulo) } }.take(4))
+                        status = when {
+                            seguro != null -> tr("Reconhecido pela imagem: {0}. Confira abaixo.", seguro.titulo)
+                            cands.isEmpty() && parecidos.isNotEmpty() -> tr("Não li o nome, mas achei imagens parecidas. Confira abaixo.")
+                            else -> status
+                        }
+                    } finally { porImagem = false }
                 }
                 // 3º código de barras da caixa (consulta o PriceCharting, em segundo plano)
                 r.barcodes.forEach { code ->
@@ -209,6 +235,7 @@ fun IdentifyScreen(m: AppModel, onOpen: (Item) -> Unit) {
     }
 
     fun pick(c: Cand) {
+        aprender(c)
         if (cands.none { it.repo == c.repo && T.norm(it.titulo) == T.norm(c.titulo) }) cands.add(0, c)
         search = ""; marcadas.clear()  // a busca fecha e o jogo escolhido aparece em "Jogos encontrados"
     }
@@ -236,7 +263,10 @@ fun IdentifyScreen(m: AppModel, onOpen: (Item) -> Unit) {
                         })
                         Hint(tr("Toque nas palavras da foto para montar a busca (o resultado aparece em Buscar pelo nome, abaixo)."))
                     } else photo?.let { AsyncImage(model = it, contentDescription = tr("Foto"), modifier = Modifier.fillMaxWidth().heightIn(max = 260.dp)) }
-                    Row { if (reading) CircularProgressIndicator(Modifier.width(20.dp).padding(end = 8.dp)); Hint(status) }
+                    Row { if (reading || porImagem) CircularProgressIndicator(Modifier.width(20.dp).padding(end = 8.dp)); Hint(status) }
+                    if (porImagem) Hint(tr("Comparando com as imagens conhecidas…"))
+                    if (photo != null && !reading && !porImagem && !m.imagens.hasAny())
+                        Hint(tr("Para reconhecer pela imagem do cartucho, do disco ou da capa, baixe os pacotes em Ajustes → Reconhecimento por imagem."))
                 }
             }
         }
@@ -265,17 +295,19 @@ fun IdentifyScreen(m: AppModel, onOpen: (Item) -> Unit) {
         if (parecidos.isNotEmpty()) item {
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(tr("Parecido pela capa"), fontWeight = FontWeight.SemiBold)
+                    Text(tr("Parecido pela imagem"), fontWeight = FontWeight.SemiBold)
                     parecidos.toList().forEach { p ->
-                        TextButton(onClick = {
-                            parecidos.remove(p)
-                            cands.add(0, Cand(p.titulo, p.console.ifBlank { consoleFor(m, p.repo) }, m.catalog?.label(p.repo) ?: p.console, p.repo, origem = "capa"))
-                        }, modifier = Modifier.fillMaxWidth()) { Text("${p.titulo} · ${cn(p.console.ifBlank { m.catalog?.label(p.repo) ?: "" })} · ${(p.score * 100).toInt()}%", modifier = Modifier.fillMaxWidth()) }
+                        TextButton(onClick = { parecidos.remove(p); cands.add(0, p) }, modifier = Modifier.fillMaxWidth()) {
+                            Column(Modifier.fillMaxWidth()) {
+                                Text(p.titulo)
+                                Hint(listOf(cn(p.console).ifBlank { p.plataforma }, p.regiao, tr("{0} pontos iguais", p.origem.substringAfter(':'))).filter { it.isNotBlank() }.joinToString(" · "))
+                            }
+                        }
                     }
                 }
             }
         }
-        items(cands, key = { it.repo + it.titulo }) { c -> CandCard(m, c, onOpen, onReplace = { nc -> val i = cands.indexOf(c); if (i >= 0) cands[i] = nc }) }
+        items(cands, key = { it.repo + it.titulo }) { c -> CandCard(m, c, onOpen, onReplace = { nc -> val i = cands.indexOf(c); if (i >= 0) cands[i] = nc }, onConfirm = { aprender(it) }) }
         photo?.let { f ->
             item {
                 Card(Modifier.fillMaxWidth()) {
@@ -346,7 +378,7 @@ fun NameSearch(m: AppModel, query: String, onQuery: (String) -> Unit, onPick: (C
  * o que já está na sua planilha (em quais versões você tem); e o que dá para fazer.
  */
 @Composable
-fun CandCard(m: AppModel, c: Cand, onOpen: (Item) -> Unit, onReplace: (Cand) -> Unit) {
+fun CandCard(m: AppModel, c: Cand, onOpen: (Item) -> Unit, onReplace: (Cand) -> Unit, onConfirm: (Cand) -> Unit = {}) {
     val st by m.repo.state.collectAsState()
     val found = remember(c, st) { m.repo.find(c.titulo, c.console.ifEmpty { null }) }
     val have = found.filter { it.item.lista == Lista.COLECAO }.map { it.item }
@@ -367,6 +399,7 @@ fun CandCard(m: AppModel, c: Cand, onOpen: (Item) -> Unit, onReplace: (Cand) -> 
                         c.origem == "etiqueta" -> tr("Reconhecido pela etiqueta"); c.origem == "planilha" -> tr("Escolhido da sua planilha"); c.origem == "busca" -> tr("Escolhido no catálogo")
                         c.origem.startsWith("codigo:") -> tr("Identificado pelo código {0} (exato)", c.origem.substringAfter(':'))
                         c.origem == "capa" -> tr("Reconhecido pela imagem da capa")
+                        c.origem.startsWith("imagem:") -> tr("Reconhecido pela imagem ({0} pontos iguais)", c.origem.substringAfter(':'))
                         c.origem.startsWith("barras:") -> tr("Identificado pelo código de barras {0}", c.origem.substringAfter(':'))
                         else -> tr("Nome digitado") }, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
@@ -390,9 +423,9 @@ fun CandCard(m: AppModel, c: Cand, onOpen: (Item) -> Unit, onReplace: (Cand) -> 
             // 3 · o que fazer (o mesmo jogo pode entrar de novo em outra região)
             SectionTitle(tr("O que fazer"))
             Chips {
-                AssistChip(onClick = { dialog = "comprei" }, label = { Text(if (have.isEmpty()) tr("Comprei") else tr("Comprei outra versão")) })
-                AssistChip(onClick = { dialog = "colecao" }, label = { Text(if (have.isEmpty()) tr("Já tenho: pôr na coleção") else tr("Pôr na coleção (outra versão)")) })
-                if (found.isEmpty() && m.repo.state.value.config?.procurados?.isNotEmpty() == true) AssistChip(onClick = { dialog = "quero" }, label = { Text(tr("Quero (procurados)")) })
+                AssistChip(onClick = { onConfirm(c); dialog = "comprei" }, label = { Text(if (have.isEmpty()) tr("Comprei") else tr("Comprei outra versão")) })
+                AssistChip(onClick = { onConfirm(c); dialog = "colecao" }, label = { Text(if (have.isEmpty()) tr("Já tenho: pôr na coleção") else tr("Pôr na coleção (outra versão)")) })
+                if (found.isEmpty() && m.repo.state.value.config?.procurados?.isNotEmpty() == true) AssistChip(onClick = { onConfirm(c); dialog = "quero" }, label = { Text(tr("Quero (procurados)")) })
             }
             if (c.alternativas.isNotEmpty()) {
                 SectionTitle(tr("Pode ser também"))

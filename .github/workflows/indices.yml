@@ -1,0 +1,135 @@
+# Pacotes de reconhecimento por imagem (melhoria 24).
+# Uma vez por mês (ou pelo botão "Run workflow"): lista as fotos/scans de cartuchos, discos e capas do
+# LaunchBox Games DB, baixa as de cada console, guarda só os pontos característicos e publica os pacotes
+# na pré-versão "indices" (pré-versão: o app não a confunde com atualização).
+name: Pacotes de imagem
+
+on:
+  workflow_dispatch:
+    inputs:
+      acervos:
+        description: "Só estes consoles (nomes seguros separados por espaço; vazio = todos)"
+        required: false
+        default: ""
+  schedule:
+    - cron: "23 4 3 * *"   # dia 3 de cada mês, de madrugada
+
+permissions:
+  contents: write
+
+concurrency:
+  group: indices
+  cancel-in-progress: false
+
+env:
+  PONTOS: "300"
+  BITS: "128"
+
+jobs:
+  listar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    outputs:
+      acervos: ${{ steps.l.outputs.acervos }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pillow
+      - id: l
+        name: Listar as imagens de cada console
+        env:
+          SO: ${{ github.event.inputs.acervos }}
+        run: |
+          python tools/build_indices.py listar "$RUNNER_TEMP/w"
+          if [ -n "${SO:-}" ]; then
+            python -c "import json,os;s=os.environ['SO'].split();print(json.dumps([a for a in json.load(open('$RUNNER_TEMP/w/acervos.json')) if a in s]))" > "$RUNNER_TEMP/m.json"
+          else cp "$RUNNER_TEMP/w/acervos.json" "$RUNNER_TEMP/m.json"; fi
+          echo "acervos=$(cat "$RUNNER_TEMP/m.json")" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: listas
+          path: ${{ runner.temp }}/w/listas
+
+  montar:
+    needs: listar
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    strategy:
+      fail-fast: false
+      max-parallel: 6
+      matrix:
+        acervo: ${{ fromJson(needs.listar.outputs.acervos) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - run: pip install pillow
+      - uses: actions/download-artifact@v4
+        with:
+          name: listas
+          path: ${{ runner.temp }}/w/listas
+      - name: Baixar as imagens
+        run: python tools/build_indices.py baixar "$RUNNER_TEMP/w" "${{ matrix.acervo }}"
+      - name: Montar o pacote (só os pontos característicos)
+        working-directory: android
+        run: |
+          ./gradlew --no-daemon -q :montador:installDist
+          montador/build/install/montador/bin/montador montar "$RUNNER_TEMP/w/${{ matrix.acervo }}/lista.json" "$RUNNER_TEMP/w/${{ matrix.acervo }}" "$RUNNER_TEMP/out/${{ matrix.acervo }}" "$PONTOS"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pacote-${{ matrix.acervo }}
+          path: ${{ runner.temp }}/out/*.gcix.gz
+          retention-days: 3
+
+  publicar:
+    needs: montar
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: pacote-*
+          merge-multiple: true
+          path: pacotes
+      - name: Lista dos pacotes (indices.json)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download indices -p indices.json -D antigo 2>/dev/null || true
+          python - <<'EOF'
+          import json, os, gzip, struct, datetime
+          out = []
+          for f in sorted(os.listdir("pacotes")):
+              if not f.endswith(".gcix.gz"): continue
+              p = os.path.join("pacotes", f)
+              with gzip.open(p, "rb") as g:
+                  magic, ver = struct.unpack(">IH", g.read(6)); bits = struct.unpack(">H", g.read(2))[0] if ver >= 2 else 256
+                  n = struct.unpack(">I", g.read(4))[0]
+                  # o acervo é o segundo texto da primeira entrada
+                  def utf(): l = struct.unpack(">H", g.read(2))[0]; return g.read(l).decode("utf8")
+                  nome, acervo, reg, tipo = (utf(), utf(), utf(), utf()) if n else ("", f, "", "")
+              out.append({"acervo": acervo, "tipo": tipo, "arquivo": f, "bytes": os.path.getsize(p), "imagens": n, "bits": bits,
+                          "data": datetime.date.today().isoformat()})
+          # mantém os pacotes que não foram refeitos nesta rodada
+          if os.path.exists("antigo/indices.json"):
+              novos = {p["arquivo"] for p in out}
+              out += [p for p in json.load(open("antigo/indices.json"))["pacotes"] if p["arquivo"] not in novos]
+          json.dump({"versao": 1, "data": datetime.date.today().isoformat(), "fonte": "LaunchBox Games DB", "pacotes": out},
+                    open("pacotes/indices.json", "w"), ensure_ascii=False, indent=1)
+          print(len(out), "pacotes")
+          EOF
+      - name: Publicar na pré-versão "indices"
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view indices >/dev/null 2>&1 || gh release create indices --prerelease --title "Pacotes de reconhecimento por imagem" \
+            --notes "Pontos característicos de fotos e scans de cartuchos, discos e capas (fonte: LaunchBox Games DB), por console. Baixados pelo app em Ajustes → Reconhecimento por imagem. Não é uma versão do app."
+          gh release upload indices pacotes/*.gcix.gz pacotes/indices.json --clobber

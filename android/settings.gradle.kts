@@ -6,4 +6,4 @@ dependencyResolutionManagement {
     repositories { google(); mavenCentral() }
 }
 rootProject.name = "GameCatalog"
-include(":app")
+include(":app", ":visao", ":montador")
