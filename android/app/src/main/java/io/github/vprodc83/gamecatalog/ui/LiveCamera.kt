@@ -52,7 +52,7 @@ import io.github.vprodc83.gamecatalog.data.Lista
 import java.util.concurrent.Executors
 
 /** Um jogo reconhecido na imagem ao vivo, com a posição (em pixels da tela) e há quanto tempo foi visto. */
-private data class LiveHit(val titulo: String, val repo: String, val x: Float, val y: Float, val seen: Long, val item: Item?, val lista: Lista?)
+private data class LiveHit(val titulo: String, val repo: String, val x: Float, val y: Float, val seen: Long, val item: Item?, val lista: Lista?, val itens: List<Item> = emptyList())
 
 /**
  * Câmera ao vivo (melhoria 14): aponte para a prateleira; cada jogo reconhecido ganha um selo sobre a imagem
@@ -139,12 +139,8 @@ private fun LiveView(m: AppModel, onOpen: (Item) -> Unit, onPick: (Cand) -> Unit
         AndroidView(factory = { c -> PreviewView(c).apply { scaleType = PreviewView.ScaleType.FILL_CENTER; runCatching { this.controller = controller } } },
             modifier = Modifier.fillMaxSize(), update = { v -> viewW = v.width.toFloat().coerceAtLeast(1f); viewH = v.height.toFloat().coerceAtLeast(1f) })
         hits.forEach { h ->
-            val (txt, cor) = when (h.lista) {
-                Lista.COLECAO -> "✔ " + tr("Já tenho") to Ok
-                Lista.PROCURADO -> "★ " + tr("Procurado") to Info
-                Lista.COMPRADO -> "🛒 " + tr("Comprado") to Warn
-                null -> "+ " + tr("Não tenho") to MaterialTheme.colorScheme.primary
-            }
+            val e = etiquetas(h.itens, "", MaterialTheme.colorScheme.primary).first()
+            val txt = e.texto; val cor = e.cor
             Column(Modifier.offset { IntOffset((h.x - with(density) { 80.dp.toPx() }).toInt().coerceAtLeast(0), (h.y - with(density) { 52.dp.toPx() }).toInt().coerceAtLeast(0)) }
                 .widthIn(max = 180.dp).background(cor, RoundedCornerShape(10.dp))
                 .clickable { if (h.item != null) onOpen(h.item) else onPick(Cand(h.titulo, consoleFor(m, h.repo), m.catalog?.label(h.repo) ?: "", h.repo, origem = "etiqueta")) }
@@ -160,5 +156,5 @@ private fun hit(m: AppModel, titulo: String, repo: String, x: Float, y: Float, n
     val console = consoleFor(m, repo)
     val f = m.repo.find(titulo, console.ifBlank { null })
     val best = f.firstOrNull { it.item.lista == Lista.COLECAO } ?: f.firstOrNull { it.item.lista == Lista.COMPRADO } ?: f.firstOrNull()
-    return LiveHit(titulo, repo, x, y, now, best?.item, best?.item?.lista)
+    return LiveHit(titulo, repo, x, y, now, best?.item, best?.item?.lista, f.map { it.item })
 }

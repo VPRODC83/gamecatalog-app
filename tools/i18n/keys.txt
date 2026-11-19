@@ -405,3 +405,9 @@ Mídias (cartuchos e discos)
 Capas
 Baixar
 Incluir as capas (pacotes maiores)
+Já tenho outra versão ({0}) · na coleção
+Já tenho ({0}) · na coleção
+Já tenho · na coleção
+Já comprei · nas compras, a receber
+Não tenho · nos procurados (ainda não comprei)
+Não tenho · fora das listas

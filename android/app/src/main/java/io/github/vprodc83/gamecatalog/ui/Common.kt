@@ -53,6 +53,37 @@ val DarkColors: ColorScheme = darkColorScheme(
     surfaceVariant = Color(0xFF23262F), onSurface = Color(0xFFE8EAF0), onSurfaceVariant = Color(0xFF9AA1B0), error = Color(0xFFFF7A70), outline = Color(0xFF2F3440)
 )
 val Ok = Color(0xFF1F7A4D); val Warn = Color(0xFF9A6A00); val Info = Color(0xFF1D5FA8)
+/** Cor de "já tenho, mas em outra versão (região)". */
+val Outra = Color(0xFF00796B)
+
+/** Uma etiqueta de situação: texto curto e cor. */
+data class Etiqueta(val texto: String, val cor: Color)
+
+/**
+ * Situação do jogo em relação às listas, dizendo sempre qual é a lista:
+ *  ✔ Já tenho · na coleção  (ou "Já tenho outra versão (JAP)" quando a região da foto é outra)
+ *  🛒 Já comprei · nas compras, a receber
+ *  ★ Não tenho · nos procurados (ainda não comprei)
+ *  + Não tenho · fora das listas
+ * [regiao]: região do exemplar identificado, quando conhecida (código impresso, código de barras, imagem).
+ */
+fun etiquetas(found: List<io.github.vprodc83.gamecatalog.data.Item>, regiao: String, nenhuma: Color): List<Etiqueta> {
+    val R = io.github.vprodc83.gamecatalog.core.Regions
+    val have = found.filter { it.lista == io.github.vprodc83.gamecatalog.data.Lista.COLECAO }
+    val out = ArrayList<Etiqueta>()
+    fun regs(l: List<io.github.vprodc83.gamecatalog.data.Item>) = l.map { it.regiao.ifBlank { tr("sem região") } }.distinct().joinToString(", ")
+    if (have.isNotEmpty()) {
+        val mesma = have.filter { R.same(it.regiao, regiao) }
+        out += if (regiao.isNotBlank() && mesma.isEmpty()) Etiqueta("✔ " + tr("Já tenho outra versão ({0}) · na coleção", regs(have)), Outra)
+        else if (have.any { it.regiao.isNotBlank() }) Etiqueta("✔ " + tr("Já tenho ({0}) · na coleção", regs(if (regiao.isNotBlank()) mesma else have)), Ok)
+        else Etiqueta("✔ " + tr("Já tenho · na coleção"), Ok)
+    }
+    if (found.any { it.lista == io.github.vprodc83.gamecatalog.data.Lista.COMPRADO }) out += Etiqueta("🛒 " + tr("Já comprei · nas compras, a receber"), Warn)
+    if (have.isEmpty() && found.any { it.lista == io.github.vprodc83.gamecatalog.data.Lista.PROCURADO } && found.none { it.lista == io.github.vprodc83.gamecatalog.data.Lista.COMPRADO })
+        out += Etiqueta("★ " + tr("Não tenho · nos procurados (ainda não comprei)"), Info)
+    if (out.isEmpty()) out += Etiqueta("+ " + tr("Não tenho · fora das listas"), nenhuma)
+    return out
+}
 
 @Composable fun Hint(text: String, modifier: Modifier = Modifier) =
     Text(text, modifier = modifier, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)

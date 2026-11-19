@@ -362,11 +362,8 @@ fun NameSearch(m: AppModel, query: String, onQuery: (String) -> Unit, onPick: (C
         Column(Modifier.fillMaxWidth()) {
             Text(c.tituloLimpo); Hint(c.plataforma)
             val have = its.filter { it.lista == Lista.COLECAO }
-            when {
-                have.isNotEmpty() -> Text(tr("Você já possui esse jogo em versão {0}.", versoes(have)), color = Ok, style = MaterialTheme.typography.labelSmall)
-                its.any { it.lista == Lista.COMPRADO } -> Text(tr("Já está nas compras"), color = Warn, style = MaterialTheme.typography.labelSmall)
-                its.any { it.lista == Lista.PROCURADO } -> Text(tr("Está nos procurados"), color = Info, style = MaterialTheme.typography.labelSmall)
-            }
+            if (its.isNotEmpty()) etiquetas(its, "", MaterialTheme.colorScheme.primary).forEach { Text(it.texto, color = it.cor, style = MaterialTheme.typography.labelSmall) }
+            if (have.isNotEmpty()) Hint(tr("Você já possui esse jogo em versão {0}.", versoes(have)))
         }
     } }
     if (mine.isEmpty() && cat.isEmpty()) Hint(tr("Nada parecido. Tente outro nome ou outro console."))
@@ -408,10 +405,7 @@ fun CandCard(m: AppModel, c: Cand, onOpen: (Item) -> Unit, onReplace: (Cand) -> 
             // 2 · na sua planilha
             SectionTitle(tr("Na sua planilha"))
             Chips {
-                if (have.isNotEmpty()) Pill(tr("Você já tem"), Ok)
-                if (buying.isNotEmpty()) Pill(tr("Já está nas compras"), Warn)
-                if (want.isNotEmpty()) Pill(tr("Está nos procurados"), Info)
-                if (found.isEmpty()) Pill(tr("Você não tem"), MaterialTheme.colorScheme.primary)
+                etiquetas(found.map { it.item }, c.regiao, MaterialTheme.colorScheme.primary).forEach { Pill(it.texto, it.cor) }
             }
             if (have.isNotEmpty()) Text(tr("Você já possui esse jogo em versão {0}.", versoes(have)), style = MaterialTheme.typography.bodySmall)
             found.take(4).forEach { f -> val i = f.item

@@ -98,6 +98,20 @@ class CoreTest {
         assertEquals("EU", R.fromPcConsole("pal-super-nintendo")); assertEquals("JP", R.fromPcConsole("jp-super-famicom")); assertEquals("US", R.fromPcConsole("super-nintendo"))
     }
 
+    /** Etiqueta diz a lista e diferencia outra versão (região). */
+    @Test fun etiquetasDeSituacao() {
+        fun it0(l: io.github.vprodc83.gamecatalog.data.Lista, reg: String) = io.github.vprodc83.gamecatalog.data.Item(l, "GAMES", 12, emptyList(), "SFC", "Star Fox", reg)
+        val c = androidx.compose.ui.graphics.Color.Black
+        fun e(f: List<io.github.vprodc83.gamecatalog.data.Item>, r: String) = io.github.vprodc83.gamecatalog.ui.etiquetas(f, r, c).map { it.texto }
+        assertTrue(e(listOf(it0(io.github.vprodc83.gamecatalog.data.Lista.COLECAO, "JAP")), "US").single().contains("outra versão (JAP)"))
+        assertTrue(e(listOf(it0(io.github.vprodc83.gamecatalog.data.Lista.COLECAO, "JAP")), "JP").single().startsWith("✔ Já tenho (JAP)"))
+        assertTrue(e(listOf(it0(io.github.vprodc83.gamecatalog.data.Lista.COLECAO, "JAP")), "").single().startsWith("✔ Já tenho (JAP)"))
+        assertTrue(e(listOf(it0(io.github.vprodc83.gamecatalog.data.Lista.COMPRADO, "")), "").single().contains("nas compras"))
+        assertTrue(e(listOf(it0(io.github.vprodc83.gamecatalog.data.Lista.PROCURADO, "")), "").single().contains("procurados"))
+        assertTrue(e(listOf(it0(io.github.vprodc83.gamecatalog.data.Lista.PROCURADO, ""), it0(io.github.vprodc83.gamecatalog.data.Lista.COMPRADO, "")), "").single().contains("nas compras"))
+        assertTrue(e(emptyList(), "").single().contains("fora das listas"))
+    }
+
     @Test fun pricechartingParse() {
         val html = """<td id="used_price"><span class="price js-price">$45.10</span></td><td id="complete_price"><span class="price">$1,120.00</span></td><td id="new_price"><span>N/A</span></td>"""
         val (l, c, n) = Prices.parseProduct(html)
