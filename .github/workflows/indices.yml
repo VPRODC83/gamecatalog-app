@@ -80,7 +80,8 @@ jobs:
       - name: Montar o pacote (só os pontos característicos)
         working-directory: android
         run: |
-          ./gradlew --no-daemon -q :montador:installDist
+          # o Maven às vezes falha por um instante: tenta de novo
+          for t in 1 2 3; do ./gradlew --no-daemon -q :montador:installDist && break; echo "tentativa $t falhou"; sleep 30; done
           montador/build/install/montador/bin/montador montar "$RUNNER_TEMP/w/${{ matrix.acervo }}/lista.json" "$RUNNER_TEMP/w/${{ matrix.acervo }}" "$RUNNER_TEMP/out/${{ matrix.acervo }}" "$PONTOS"
       - uses: actions/upload-artifact@v4
         with:
