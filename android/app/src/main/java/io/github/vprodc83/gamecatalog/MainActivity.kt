@@ -73,12 +73,13 @@ class MainActivity : ComponentActivity() {
         model = AppModel(applicationContext, auth)
         handleShare(intent)
         val version = io.github.vprodc83.gamecatalog.ui.Updates.appVersion(this)
+        io.github.vprodc83.gamecatalog.ui.VisualAtual.carregar(this)
         setContent {
-            MaterialTheme(colorScheme = if (isSystemInDarkTheme()) DarkColors else LightColors) {
+            io.github.vprodc83.gamecatalog.ui.TemaDoApp(isSystemInDarkTheme()) {
                 androidx.compose.runtime.CompositionLocalProvider(androidx.compose.ui.platform.LocalLayoutDirection provides
                     if (io.github.vprodc83.gamecatalog.ui.I18n.rtl) androidx.compose.ui.unit.LayoutDirection.Rtl else androidx.compose.ui.unit.LayoutDirection.Ltr) {
                 Box(Modifier.fillMaxSize()) {
-                    Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) { App(model) }
+                    Surface(Modifier.fillMaxSize(), color = androidx.compose.ui.graphics.Color.Transparent) { App(model) }
                     // abertura uma vez por abertura do app (girar a tela não repete)
                     if (!splashDone.value) io.github.vprodc83.gamecatalog.ui.SplashScreen(version) { splashDone.value = true }
                     else io.github.vprodc83.gamecatalog.ui.CrashReportDialog()
@@ -130,15 +131,16 @@ private fun App(m: AppModel) {
 
     when (setup) {
         Setup.CARREGANDO -> Box(Modifier.fillMaxSize()) { LinearProgressIndicator(Modifier.padding(top = 80.dp).fillMaxWidth()) }
-        Setup.LOGIN -> Scaffold(snackbarHost = { SnackbarHost(snack) }) { p -> Box(Modifier.padding(p)) { LoginScreen(m) { m.scope.launch { if (m.repo.sheetId.isNotBlank()) m.refresh().join(); next() } } } }
-        Setup.PLANILHA -> Scaffold(snackbarHost = { SnackbarHost(snack) }) { p -> Box(Modifier.padding(p)) { SheetScreen(m) { m.sharedLink = null; next() } } }
-        Setup.COLUNAS -> Scaffold(snackbarHost = { SnackbarHost(snack) }) { p ->
+        Setup.LOGIN -> Scaffold(containerColor = androidx.compose.ui.graphics.Color.Transparent, snackbarHost = { SnackbarHost(snack) }) { p -> Box(Modifier.padding(p)) { LoginScreen(m) { m.scope.launch { if (m.repo.sheetId.isNotBlank()) m.refresh().join(); next() } } } }
+        Setup.PLANILHA -> Scaffold(containerColor = androidx.compose.ui.graphics.Color.Transparent, snackbarHost = { SnackbarHost(snack) }) { p -> Box(Modifier.padding(p)) { SheetScreen(m) { m.sharedLink = null; next() } } }
+        Setup.COLUNAS -> Scaffold(containerColor = androidx.compose.ui.graphics.Color.Transparent, snackbarHost = { SnackbarHost(snack) }) { p ->
             BackHandler(enabled = st.config != null) { setup = Setup.PRONTO }
             Box(Modifier.padding(p)) { MappingScreen(m) { next() } }
         }
         Setup.PRONTO -> {
             BackHandler(enabled = open != null || tab != Tab.IDENTIFICAR) { if (open != null) open = null else tab = Tab.IDENTIFICAR }
             Scaffold(
+                containerColor = androidx.compose.ui.graphics.Color.Transparent,
                 topBar = {
                     TopAppBar(title = { Text(if (open != null) tr(open!!.lista.titulo) else tr(tab.titulo) + if (tab == Tab.COLECAO) " (${st.of(Lista.COLECAO).size})" else "", maxLines = 1, overflow = TextOverflow.Ellipsis) },
                         actions = { IconButton(onClick = { m.refresh() }, enabled = !m.busy) { Icon(Icons.Default.Refresh, tr("Atualizar")) } })

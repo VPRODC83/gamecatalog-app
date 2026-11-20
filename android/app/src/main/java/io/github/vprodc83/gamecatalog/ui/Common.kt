@@ -20,7 +20,6 @@ import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
@@ -44,17 +43,12 @@ import coil3.compose.AsyncImage
 import androidx.core.content.FileProvider
 import java.io.File
 
-val LightColors: ColorScheme = lightColorScheme(
-    primary = Color(0xFF4A3FB0), onPrimary = Color.White, background = Color(0xFFE6E8EC), surface = Color(0xFFF6F7F9),
-    surfaceVariant = Color(0xFFFFFDF6), onSurface = Color(0xFF1D2027), onSurfaceVariant = Color(0xFF5D6472), error = Color(0xFFB3261E), outline = Color(0xFFC9CDD5)
-)
-val DarkColors: ColorScheme = darkColorScheme(
-    primary = Color(0xFF8F84FF), onPrimary = Color(0xFF14161B), background = Color(0xFF14161B), surface = Color(0xFF1D2028),
-    surfaceVariant = Color(0xFF23262F), onSurface = Color(0xFFE8EAF0), onSurfaceVariant = Color(0xFF9AA1B0), error = Color(0xFFFF7A70), outline = Color(0xFF2F3440)
-)
-val Ok = Color(0xFF1F7A4D); val Warn = Color(0xFF9A6A00); val Info = Color(0xFF1D5FA8)
+// cores de situação: dependem do visual escolhido (no CRT, por exemplo, precisam ser claras)
+val Ok: Color get() = VisualAtual.estilo.ok
+val Warn: Color get() = VisualAtual.estilo.warn
+val Info: Color get() = VisualAtual.estilo.info
 /** Cor de "já tenho, mas em outra versão (região)". */
-val Outra = Color(0xFF00796B)
+val Outra: Color get() = VisualAtual.estilo.outra
 
 /** Uma etiqueta de situação: texto curto e cor. */
 data class Etiqueta(val texto: String, val cor: Color)

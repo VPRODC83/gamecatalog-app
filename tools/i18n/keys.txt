@@ -411,3 +411,16 @@ Já tenho · na coleção
 Já comprei · nas compras, a receber
 Não tenho · nos procurados (ainda não comprei)
 Não tenho · fora das listas
+Visual do app
+Escolher o visual
+Pronto
+Toque num visual para aplicar. Dá para trocar quando quiser; nada na planilha muda.
+Fontes dos visuais retrô: Pixelify Sans, VT323, Bungee e Rubik (SIL Open Font License).
+Atual
+Console 16-bit
+Fliperama CRT
+Revista anos 90
+O visual de sempre, claro ou escuro como o celular.
+Plástico cinza, botões em relevo e títulos em pixel.
+Tela escura de fósforo verde, com linhas de varredura.
+Papel com retícula, letras grossas e sombras duras.

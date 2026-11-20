@@ -22,7 +22,6 @@ import io.github.vprodc83.gamecatalog.ui.AppModel
 import io.github.vprodc83.gamecatalog.ui.DetailScreen
 import io.github.vprodc83.gamecatalog.ui.I18n
 import io.github.vprodc83.gamecatalog.ui.IdentifyScreen
-import io.github.vprodc83.gamecatalog.ui.LightColors
 import io.github.vprodc83.gamecatalog.ui.ListScreen
 import io.github.vprodc83.gamecatalog.ui.SettingsScreen
 import io.github.vprodc83.gamecatalog.ui.SplashScreen
@@ -63,7 +62,7 @@ class ScreensTest {
     private fun shot(name: String, rtl: Boolean = false, content: @Composable () -> Unit) {
         rule.setContent {
             CompositionLocalProvider(LocalLayoutDirection provides if (rtl) LayoutDirection.Rtl else LayoutDirection.Ltr) {
-                MaterialTheme(colorScheme = LightColors) { Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) { Box(Modifier.fillMaxSize()) { content() } } }
+                io.github.vprodc83.gamecatalog.ui.TemaDoApp(false) { Surface(Modifier.fillMaxSize(), color = androidx.compose.ui.graphics.Color.Transparent) { Box(Modifier.fillMaxSize()) { content() } } }
             }
         }
         rule.mainClock.advanceTimeBy(7000)
@@ -80,6 +79,18 @@ class ScreensTest {
         // a cada setContent a composição anterior é substituída; uma tela por teste deixa as imagens independentes
         shot("1-colecao") { ListScreen(m, Lista.COLECAO) {} }
     }
+
+    // os visuais retrô (Ajustes → Visual do app)
+    private fun noVisual(v: io.github.vprodc83.gamecatalog.ui.Visual, bloco: () -> Unit) {
+        io.github.vprodc83.gamecatalog.ui.VisualAtual.visual = v
+        try { bloco() } finally { io.github.vprodc83.gamecatalog.ui.VisualAtual.visual = io.github.vprodc83.gamecatalog.ui.Visual.ATUAL }
+    }
+    @Test fun console16Colecao() { val m = seed(); noVisual(io.github.vprodc83.gamecatalog.ui.Visual.CONSOLE) { shot("8a-console16-colecao") { ListScreen(m, Lista.COLECAO) {} } } }
+    @Test fun console16Ajustes() { val m = seed(); noVisual(io.github.vprodc83.gamecatalog.ui.Visual.CONSOLE) { shot("8b-console16-ajustes") { SettingsScreen(m, {}, {}, {}) } } }
+    @Test fun crtColecao() { val m = seed(); noVisual(io.github.vprodc83.gamecatalog.ui.Visual.CRT) { shot("9a-crt-colecao") { ListScreen(m, Lista.COLECAO) {} } } }
+    @Test fun crtFicha() { val m = seed(); noVisual(io.github.vprodc83.gamecatalog.ui.Visual.CRT) { shot("9b-crt-ficha") { DetailScreen(m, m.repo.state.value.of(Lista.COLECAO)[1]) {} } } }
+    @Test fun revistaColecao() { val m = seed(); noVisual(io.github.vprodc83.gamecatalog.ui.Visual.REVISTA) { shot("10a-revista-colecao") { ListScreen(m, Lista.COLECAO) {} } } }
+    @Test fun revistaAjustes() { val m = seed(); noVisual(io.github.vprodc83.gamecatalog.ui.Visual.REVISTA) { shot("10b-revista-ajustes") { SettingsScreen(m, {}, {}, {}) } } }
 
     @Test fun ficha() { val m = seed(); shot("2-ficha") { DetailScreen(m, m.repo.state.value.of(Lista.COLECAO)[1]) {} } }
     @Test fun identificar() { val m = seed(); shot("3-identificar") { IdentifyScreen(m) {} } }
