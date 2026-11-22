@@ -32,7 +32,9 @@ class Repo(private val dir: File, val sheets: Sheets) {
         /** Opções das listas suspensas das tabelas da planilha: aba → coluna (0 = A) → opções. */
         val dropdowns: Map<String, Map<Int, List<String>>> = emptyMap(),
         /** Procurados já marcados COMPRADO e compras já RECEBIDAS (não aparecem nas listas, mas servem à varredura). */
-        val wantedBought: List<Item> = emptyList(), val received: List<Item> = emptyList()
+        val wantedBought: List<Item> = emptyList(), val received: List<Item> = emptyList(),
+        /** Cabeçalho da aba de compras (para saber se já tem as colunas CIB? e LOOSE?, I e J). */
+        val buyHead: List<String> = emptyList()
     ) {
         val consoles: List<String> get() = items.filter { it.lista == Lista.COLECAO }.map { it.console.uppercase() }.filter { it.isNotBlank() }.distinct().sorted()
         fun of(l: Lista) = items.filter { it.lista == l }
@@ -62,7 +64,7 @@ class Repo(private val dir: File, val sheets: Sheets) {
         val c = cfg.colecao
         val ranges = mutableListOf("${q(c.aba)}!A1:${col(c.ultima)}5000")
         cfg.procurados.forEach { ranges.add("${q(it.aba)}!A1:Z5000") }
-        ranges.add("${q(cfg.compras)}!A1:H5000")
+        ranges.add("${q(cfg.compras)}!A1:J5000")
         if (Config.CAPAS in meta.tabs) ranges.add("${q(Config.CAPAS)}!A1:F5000")
         if (Config.PRECOS in meta.tabs) ranges.add("${q(Config.PRECOS)}!A1:C5000")
         val vals = sheets.batchGet(id, ranges)
@@ -98,9 +100,11 @@ class Repo(private val dir: File, val sheets: Sheets) {
             }
         }
         val bi = 1 + cfg.procurados.size
+        val buyHead = pad(vals.getOrElse(bi) { emptyList() }.firstOrNull(), 10)
         vals.getOrElse(bi) { emptyList() }.drop(1).forEachIndexed { i, r ->
-            val raw = pad(r, 8); if (raw[2].isBlank()) return@forEachIndexed
-            val it = Item(Lista.COMPRADO, cfg.compras, i + 2, raw, raw[1], raw[2], raw[3], status = raw[5], info = raw[4], data = raw[0], obs = raw[7])
+            val raw = pad(r, 10); if (raw[2].isBlank()) return@forEachIndexed
+            val cond = listOf(8, 9).filter { buyHead[it].isNotBlank() }.map { buyHead[it] to raw[it] }
+            val it = Item(Lista.COMPRADO, cfg.compras, i + 2, raw, raw[1], raw[2], raw[3], status = raw[5], info = raw[4], data = raw[0], obs = raw[7], flags = cond)
             if (Text.norm(raw[5]) == "RECEBIDO") { received.add(it); return@forEachIndexed }
             items.add(it)
         }
@@ -116,7 +120,7 @@ class Repo(private val dir: File, val sheets: Sheets) {
             val p = pad(r, 3); if (p[0].isBlank()) return@forEachIndexed
             precosRows[p[0]] = i + 2; if (p[2].isNotBlank()) precos[p[0]] = p[2]
         }
-        return State(id, title, cfg, head, items, capas, capasRows, precos, precosRows, System.currentTimeMillis(), wantedBought = bought, received = received)
+        return State(id, title, cfg, head, items, capas, capasRows, precos, precosRows, System.currentTimeMillis(), wantedBought = bought, received = received, buyHead = buyHead)
     }
 
     private fun saveCache(st: State, vals: List<List<List<String>>>, tabs: List<String>) {
@@ -242,9 +246,38 @@ class Repo(private val dir: File, val sheets: Sheets) {
         appendRows(c.aba, c.ultima + 1, listOf(pad(valores, c.ultima + 1)))
     }
 
-    fun emptyCollectionRow(console: String, nome: String, regiao: String): MutableList<String> {
+    fun emptyCollectionRow(console: String, nome: String, regiao: String, cond: String = ""): MutableList<String> {
         val c = cfg.colecao
-        return MutableList(maxOf(c.ultima, c.adicionado) + 1) { "" }.also { it[c.console] = snap(c.aba, c.console, console); it[c.nome] = nome; if (c.regiao >= 0) it[c.regiao] = snap(c.aba, c.regiao, regiao); if (c.adicionado >= 0) it[c.adicionado] = today() }
+        return MutableList(maxOf(c.ultima, c.adicionado) + 1) { "" }.also { it[c.console] = snap(c.aba, c.console, console); it[c.nome] = nome; if (c.regiao >= 0) it[c.regiao] = snap(c.aba, c.regiao, regiao); if (c.adicionado >= 0) it[c.adicionado] = today()
+            setCondicao(it, cond) }
+    }
+
+    /** Marca "S" na coluna CIB? ou LOOSE? da coleção (e limpa a outra). Sem essas colunas, não faz nada. */
+    fun setCondicao(row: MutableList<String>, cond: String) {
+        val c = cfg.colecao; val head = _state.value.head
+        val ci = Condicao.colunaCib(head); val li = Condicao.colunaLoose(head)
+        if (ci in row.indices) row[ci] = if (cond == Condicao.CIB) snap(c.aba, ci, "S") else ""
+        if (li in row.indices) row[li] = if (cond == Condicao.LOOSE) snap(c.aba, li, "S") else ""
+    }
+
+    /** A aba de compras já tem as colunas CIB? (I) e LOOSE? (J)? */
+    fun buyHasCondicao(): Boolean { val h = _state.value.buyHead; return Condicao.colunaCib(h) == 8 && Condicao.colunaLoose(h) == 9 }
+
+    /**
+     * Cria as colunas CIB? (I) e LOOSE? (J) na aba de compras, ampliando a tabela se houver. Só cria se estiverem
+     * vazias; nenhuma linha existente é alterada.
+     */
+    suspend fun createBuyCondicao() {
+        val tab = cfg.compras
+        ensureTab(tab, Config.BUY_HEAD)
+        val h = sheets.get(sheetId, "${q(tab)}!A1:J1").firstOrNull() ?: emptyList()
+        if (Condicao.colunaCib(h) == 8 && Condicao.colunaLoose(h) == 9) { _state.value = _state.value.copy(buyHead = pad(h, 10)); return }
+        val ij = sheets.get(sheetId, "${q(tab)}!I1:J5000")
+        if (ij.any { r -> r.any { it.isNotBlank() } }) throw IllegalStateException(tr("As colunas I e J da aba {0} já têm dados; não criei as colunas CIB? e LOOSE?.", tab))
+        val tid = sheets.tabId(sheetId, tab)
+        sheets.addColumnToTable(sheetId, tid, 8, "CIB?", sheets.tables(sheetId).firstOrNull { it.tab == tab && it.startCol == 0 && it.startRow == 0 })
+        sheets.addColumnToTable(sheetId, tid, 9, "LOOSE?", sheets.tables(sheetId).firstOrNull { it.tab == tab && it.startCol == 0 && it.startRow == 0 })
+        _state.value = _state.value.copy(buyHead = pad(Config.BUY_HEAD + listOf("CIB?", "LOOSE?"), 10))
     }
 
     /** Inclui na primeira aba de procurados (ou na indicada). */
@@ -256,9 +289,11 @@ class Repo(private val dir: File, val sheets: Sheets) {
     }
 
     /** Comprei: linha nova na lista de compras e, se veio dos procurados, marca COMPRADO lá. Devolve um aviso, se houver. */
-    suspend fun buy(console: String, nome: String, regiao: String, obs: String, want: Item?): String? {
+    suspend fun buy(console: String, nome: String, regiao: String, obs: String, want: Item?, cond: String = ""): String? {
         ensureTab(cfg.compras, Config.BUY_HEAD)
-        appendRows(cfg.compras, 8, listOf(listOf(today(), console, nome, regiao, want?.aba ?: "", "COMPRADO", "", obs)))
+        val linha = listOf(today(), console, nome, regiao, want?.aba ?: "", "COMPRADO", "", obs)
+        if (buyHasCondicao()) appendRows(cfg.compras, 10, listOf(linha + listOf(if (cond == Condicao.CIB) "S" else "", if (cond == Condicao.LOOSE) "S" else "")))
+        else appendRows(cfg.compras, 8, listOf(linha))
         if (want != null) {
             val w = cfg.procurados.getOrNull(want.wi) ?: return null
             if (w.status < 0) return null

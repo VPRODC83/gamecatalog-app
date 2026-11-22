@@ -424,5 +424,12 @@
 "O aspeto de sempre, claro ou escuro como o telemóvel.",
 "Plástico cinzento, botões em relevo e títulos em pixel.",
 "Ecrã escuro de fósforo verde, com linhas de varrimento.",
-"Papel com retícula, letras grossas e sombras duras."
+"Papel com retícula, letras grossas e sombras duras.",
+"As colunas I e J da aba {0} já têm dados; não criei as colunas CIB? e LOOSE?.",
+"Condição",
+"CIB (completo)",
+"Loose (só o suporte)",
+"Já tem este jogo loose ({0}); este seria uma melhoria para CIB.",
+"Já tem este jogo CIB ({0}); este loose seria uma cópia a mais.",
+"Criar as colunas CIB? e LOOSE? na aba {0} (colunas I e J) para guardar a condição"
 ]

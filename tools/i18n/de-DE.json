@@ -424,5 +424,12 @@
 "Das gewohnte Aussehen, hell oder dunkel wie das Handy.",
 "Graues Plastik, erhabene Tasten und Pixel-Titel.",
 "Dunkler Bildschirm mit grünem Phosphor und Scanlines.",
-"Rasterpapier, dicke Buchstaben und harte Schatten."
+"Rasterpapier, dicke Buchstaben und harte Schatten.",
+"Die Spalten I und J im Tab {0} enthalten bereits Daten; die Spalten CIB? und LOOSE? wurden nicht angelegt.",
+"Zustand",
+"CIB (komplett)",
+"Loose (nur Datenträger)",
+"Du hast dieses Spiel bereits loose ({0}); dies wäre ein Upgrade auf CIB.",
+"Du hast dieses Spiel bereits CIB ({0}); dieses Loose wäre eine weitere Kopie.",
+"Spalten CIB? und LOOSE? im Tab {0} anlegen (Spalten I und J), um den Zustand zu speichern"
 ]

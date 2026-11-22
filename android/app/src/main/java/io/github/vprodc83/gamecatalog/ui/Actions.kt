@@ -22,6 +22,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -85,21 +86,45 @@ fun snapRegion(m: AppModel, v: String): String {
 }
 
 /** "JAP (linha 12), US (linha 40)": as versões que você já tem. */
-fun versoes(list: List<Item>): String = list.joinToString(", ") { tr("{0} (linha {1})", it.regiao.ifBlank { tr("sem região") }, it.linha) }
+fun versoes(list: List<Item>): String = list.joinToString(", ") {
+    val c = io.github.vprodc83.gamecatalog.data.Condicao.de(it)
+    tr("{0} (linha {1})", listOf(it.regiao.ifBlank { tr("sem região") }, io.github.vprodc83.gamecatalog.data.Condicao.rotulo(c)).filter { x -> x.isNotBlank() }.joinToString(" · "), it.linha)
+}
+
+/** Condição do exemplar: CIB ou Loose, as duas opções lado a lado (tocar de novo desmarca). */
+@Composable
+fun CondicaoField(valor: String, onChange: (String) -> Unit) {
+    val C = io.github.vprodc83.gamecatalog.data.Condicao
+    androidx.compose.foundation.layout.Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(tr("Condição"), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            androidx.compose.material3.FilterChip(selected = valor == C.CIB, onClick = { onChange(if (valor == C.CIB) "" else C.CIB) },
+                label = { Text(tr("CIB (completo)")) }, modifier = Modifier.heightIn(min = 44.dp))
+            androidx.compose.material3.FilterChip(selected = valor == C.LOOSE, onClick = { onChange(if (valor == C.LOOSE) "" else C.LOOSE) },
+                label = { Text(tr("Loose (só a mídia)")) }, modifier = Modifier.heightIn(min = 44.dp))
+        }
+    }
+}
 
 /**
  * Aviso de versão: você já tem o jogo? Em qual região? A nova linha seria outra versão ou uma segunda cópia
  * da mesma? Nada é bloqueado: o mesmo jogo pode ser registrado em nacionalidades diferentes.
  */
 @Composable
-fun VersionNotice(m: AppModel, have: List<Item>, regiao: String) {
+fun VersionNotice(m: AppModel, have: List<Item>, regiao: String, cond: String = "") {
     if (have.isEmpty()) return
+    val C = io.github.vprodc83.gamecatalog.data.Condicao
     val temRegiao = (m.repo.state.value.config?.colecao?.regiao ?: -1) >= 0
     val txt = tr("Você já possui esse jogo em versão {0}.", versoes(have))
+    val mesma = have.filter { Regions.same(it.regiao, regiao) }
+    val pequeno = MaterialTheme.typography.bodySmall
     when {
-        regiao.isBlank() && temRegiao -> Text(txt + " " + tr("Escolha a região para registrar outra versão."), color = Warn, style = MaterialTheme.typography.bodySmall)
-        have.any { Regions.same(it.regiao, regiao) } -> Text(txt + " " + tr("Esta seria uma segunda cópia da mesma versão."), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
-        else -> Text(txt + " " + tr("Esta entra como outra versão."), color = Info, style = MaterialTheme.typography.bodySmall)
+        regiao.isBlank() && temRegiao -> Text(txt + " " + tr("Escolha a região para registrar outra versão."), color = Warn, style = pequeno)
+        mesma.isEmpty() -> Text(txt + " " + tr("Esta entra como outra versão."), color = Info, style = pequeno)
+        // mesma versão: loose → CIB é upgrade (o loose costuma ser substituído)
+        cond == C.CIB && mesma.any { C.de(it) == C.LOOSE } && mesma.none { C.de(it) == C.CIB } -> Text(tr("Você já tem este jogo loose ({0}); este seria um upgrade para CIB.", versoes(mesma)), color = Info, style = pequeno)
+        cond == C.LOOSE && mesma.any { C.de(it) == C.CIB } -> Text(tr("Você já tem este jogo CIB ({0}); este loose seria uma cópia a mais.", versoes(mesma)), color = Warn, style = pequeno)
+        else -> Text(txt + " " + tr("Esta seria uma segunda cópia da mesma versão."), color = MaterialTheme.colorScheme.error, style = pequeno)
     }
 }
 
@@ -120,15 +145,27 @@ fun ConfirmDialog(title: String, confirm: String, onClose: () -> Unit, enabled: 
 fun BuyDialog(m: AppModel, console0: String, nome0: String, want: Item?, regiao0: String = "", onClose: () -> Unit) {
     var console by remember { mutableStateOf(snapConsole(m, console0)) }; var nome by remember { mutableStateOf(nome0) }
     var regiao by remember { mutableStateOf(snapRegion(m, want?.regiao?.ifBlank { null } ?: regiao0)) }; var obs by remember { mutableStateOf("") }
+    var cond by remember { mutableStateOf("") }; var criar by remember { mutableStateOf(true) }
     val cfg = m.repo.state.value.config
+    val temColunas = m.repo.buyHasCondicao()
     val have = remember(nome, console) { m.repo.find(nome, console.ifBlank { null }).filter { it.item.lista == Lista.COLECAO }.map { it.item } }
     ConfirmDialog(tr("Comprei"), tr("Anotar na planilha"), onClose, enabled = nome.isNotBlank(), onConfirm = {
-        onClose(); m.run { val w = m.repo.buy(console, nome.trim(), regiao, obs, want); m.repo.refresh(); m.message = w ?: tr("Anotado em {0}. Quando chegar, toque em Recebi.", cfg?.compras) }
+        onClose(); m.run {
+            if (cond.isNotBlank() && !temColunas && criar) m.repo.createBuyCondicao()
+            // sem as colunas (e sem criar), a condição vai na observação
+            val obs2 = if (cond.isNotBlank() && !m.repo.buyHasCondicao()) listOf(obs, io.github.vprodc83.gamecatalog.data.Condicao.rotulo(cond).uppercase()).filter { it.isNotBlank() }.joinToString(" · ") else obs
+            val w = m.repo.buy(console, nome.trim(), regiao, obs2, want, cond); m.repo.refresh(); m.message = w ?: tr("Anotado em {0}. Quando chegar, toque em Recebi.", cfg?.compras)
+        }
     }) {
         ConsoleField(m, console) { console = it }
         Field(tr("Nome"), nome) { nome = it }
         RegionField(m, tr("Região (versão)"), regiao) { regiao = it }
-        VersionNotice(m, have, regiao)
+        CondicaoField(cond) { cond = it }
+        if (cond.isNotBlank() && !temColunas) androidx.compose.foundation.layout.Row(verticalAlignment = Alignment.CenterVertically) {
+            androidx.compose.material3.Checkbox(checked = criar, onCheckedChange = { criar = it })
+            Text(tr("Criar as colunas CIB? e LOOSE? na aba {0} (colunas I e J) para guardar a condição", cfg?.compras ?: "COMPRAS"), style = MaterialTheme.typography.bodySmall)
+        }
+        VersionNotice(m, have, regiao, cond)
         Field(tr("Observação (onde, preço…)"), obs) { obs = it }
         Hint(tr("Vai para a aba {0} como uma linha nova.", cfg?.compras ?: "COMPRAS") + if (want != null) tr(" Na aba {0}, a linha {1} será marcada COMPRADO.", cn(want.aba), want.linha) else "")
     }
@@ -140,19 +177,24 @@ fun BuyDialog(m: AppModel, console0: String, nome0: String, want: Item?, regiao0
  * O mesmo jogo pode entrar de novo em outra região: o aviso diz o que você já tem.
  */
 @Composable
-fun AddCollectionDialog(m: AppModel, console0: String, nome0: String, regiao0: String = "", onClose: () -> Unit) {
+fun AddCollectionDialog(m: AppModel, console0: String, nome0: String, regiao0: String = "", cond0: String = "", onClose: () -> Unit) {
     val c = m.repo.state.value.config?.colecao ?: return
-    val vals = remember { mutableStateListOf<String>().apply { addAll(m.repo.emptyCollectionRow(console0, nome0, snapRegion(m, regiao0))) } }
+    val vals = remember { mutableStateListOf<String>().apply { addAll(m.repo.emptyCollectionRow(console0, nome0, snapRegion(m, regiao0), cond0)) } }
+    val head = m.repo.state.value.head
+    val ci = io.github.vprodc83.gamecatalog.data.Condicao.colunaCib(head); val li = io.github.vprodc83.gamecatalog.data.Condicao.colunaLoose(head)
+    val cond = when { ci in vals.indices && io.github.vprodc83.gamecatalog.data.Condicao.marcado(vals[ci]) -> io.github.vprodc83.gamecatalog.data.Condicao.CIB
+        li in vals.indices && io.github.vprodc83.gamecatalog.data.Condicao.marcado(vals[li]) -> io.github.vprodc83.gamecatalog.data.Condicao.LOOSE; else -> "" }
     var review by remember { mutableStateOf(false) }
     val have = remember(vals[c.nome], vals[c.console]) { m.repo.find(vals[c.nome], vals[c.console].ifBlank { null }).filter { it.item.lista == Lista.COLECAO }.map { it.item } }
     val principais = listOfNotNull(c.console, c.nome, c.regiao.takeIf { it >= 0 })
-    val detalhes = vals.indices.filter { it !in principais }
+    val detalhes = vals.indices.filter { it !in principais && it != ci && it != li }
     fun label(i: Int) = m.colName(i).ifBlank { tr("Coluna {0}", Sheets.col(i)) }
     if (!review) ConfirmDialog(tr("Novo jogo na coleção"), tr("Revisar"), onClose, enabled = vals[c.nome].isNotBlank() && vals[c.console].isNotBlank(), onConfirm = { review = true }) {
         ConsoleField(m, vals[c.console]) { vals[c.console] = it }
         ColField(m, c.aba, c.nome, tr("Nome"), vals[c.nome]) { vals[c.nome] = it }
         if (c.regiao >= 0) ColField(m, c.aba, c.regiao, tr("Região (versão)"), vals[c.regiao]) { vals[c.regiao] = it }
-        VersionNotice(m, have, if (c.regiao >= 0) vals[c.regiao] else "")
+        if (ci >= 0 || li >= 0) CondicaoField(cond) { m.repo.setCondicao(vals, it) }
+        VersionNotice(m, have, if (c.regiao >= 0) vals[c.regiao] else "", cond)
         if (detalhes.isNotEmpty()) {
             SectionTitle(tr("Detalhes"))
             detalhes.forEach { i -> ColField(m, c.aba, i, label(i), vals[i]) { vals[i] = it } }
@@ -161,7 +203,7 @@ fun AddCollectionDialog(m: AppModel, console0: String, nome0: String, regiao0: S
         onClose(); val v = vals.toList()
         m.run { m.repo.addToCollection(v); m.repo.refresh(); m.message = tr("Incluído na coleção.") }
     }) {
-        (principais + detalhes).forEach { i -> val v = vals[i]; if (v.isNotBlank()) Text("${label(i)}: ${if (i == c.console) cn(v) else v}") }
+        (principais + listOf(ci, li).filter { it >= 0 } + detalhes).forEach { i -> val v = vals[i]; if (v.isNotBlank()) Text("${label(i)}: ${if (i == c.console) cn(v) else v}") }
         if (have.isNotEmpty()) Hint(tr("Você já possui esse jogo em versão {0}.", versoes(have)))
         Hint(tr("Será uma linha nova no fim da aba {0}. Nenhuma linha existente é alterada.", c.aba))
     }
@@ -172,6 +214,8 @@ fun WantDialog(m: AppModel, console0: String, nome0: String, onClose: () -> Unit
     val tabs = m.repo.state.value.config?.procurados ?: emptyList()
     var wi by remember { mutableStateOf(tabs.indexOfFirst { it.console.isNotBlank() && m.repo.platformOf(it.console) == m.repo.platformOf(console0) }.coerceAtLeast(0)) }
     var console by remember { mutableStateOf(console0) }; var nome by remember { mutableStateOf(nome0) }; var info by remember { mutableStateOf("") }
+    var cond by remember { mutableStateOf("") }
+    val have = remember(nome, console) { m.repo.find(nome, console.ifBlank { null }).filter { it.item.lista == Lista.COLECAO }.map { it.item } }
     ConfirmDialog(tr("Quero este jogo"), tr("Incluir nos procurados"), onClose, enabled = nome.isNotBlank() && tabs.isNotEmpty(), onConfirm = {
         onClose(); m.run { m.repo.addWanted(console, nome.trim(), wi, info); m.repo.refresh(); m.message = tr("Incluído em {0}.", cn(tabs[wi].aba)) }
     }) {
@@ -179,6 +223,9 @@ fun WantDialog(m: AppModel, console0: String, nome0: String, onClose: () -> Unit
         if (tabs.getOrNull(wi)?.consoleCol ?: -1 >= 0) ConsoleField(m, console) { console = it }
         Field(tr("Nome"), nome) { nome = it }
         if (tabs.getOrNull(wi)?.info ?: -1 >= 0) Field(tr("Observação"), info) { info = it }
+        // a condição desejada não é gravada nos procurados: serve para o aviso (ex.: procurar o CIB de um loose)
+        CondicaoField(cond) { cond = it }
+        VersionNotice(m, have, "", cond)
         Hint(tr("Será uma linha nova no fim da aba."))
     }
 }
@@ -240,7 +287,7 @@ fun DeleteDialog(m: AppModel, item: Item, onClose: () -> Unit, onDeleted: () -> 
 fun ReceiveDialog(m: AppModel, buy: Item, onClose: () -> Unit) {
     val head = m.repo.state.value.head
     val c = m.repo.state.value.config?.colecao ?: return
-    val vals = remember { mutableStateListOf<String>().apply { addAll(m.repo.emptyCollectionRow(buy.console, buy.nome, buy.regiao)) } }
+    val vals = remember { mutableStateListOf<String>().apply { addAll(m.repo.emptyCollectionRow(buy.console, buy.nome, buy.regiao, io.github.vprodc83.gamecatalog.data.Condicao.de(buy))) } }
     ConfirmDialog(tr("Recebi {0}", buy.nome), tr("Pôr na coleção"), onClose, enabled = vals[c.nome].isNotBlank(), onConfirm = {
         onClose(); val v = vals.toList()
         m.run {

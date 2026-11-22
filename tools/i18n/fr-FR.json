@@ -424,5 +424,12 @@
 "L’apparence habituelle, claire ou sombre comme le téléphone.",
 "Plastique gris, boutons en relief et titres en pixels.",
 "Écran sombre au phosphore vert, avec lignes de balayage.",
-"Papier tramé, lettres épaisses et ombres dures."
+"Papier tramé, lettres épaisses et ombres dures.",
+"Les colonnes I et J de l’onglet {0} contiennent déjà des données ; je n’ai pas créé les colonnes CIB? et LOOSE?.",
+"État",
+"CIB (complet)",
+"Loose (support seul)",
+"Vous avez déjà ce jeu en loose ({0}) ; celui-ci serait une amélioration en CIB.",
+"Vous avez déjà ce jeu en CIB ({0}) ; ce loose serait un exemplaire de plus.",
+"Créer les colonnes CIB? et LOOSE? dans l’onglet {0} (colonnes I et J) pour garder l’état"
 ]

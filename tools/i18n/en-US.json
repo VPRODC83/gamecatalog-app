@@ -424,5 +424,12 @@
 "The usual look, light or dark like your phone.",
 "Grey plastic, raised buttons and pixel titles.",
 "Dark green-phosphor screen with scan lines.",
-"Halftone paper, chunky letters and hard shadows."
+"Halftone paper, chunky letters and hard shadows.",
+"Columns I and J of tab {0} already have data; I did not create the CIB? and LOOSE? columns.",
+"Condition",
+"CIB (complete)",
+"Loose (media only)",
+"You already have this game loose ({0}); this would be an upgrade to CIB.",
+"You already have this game CIB ({0}); this loose one would be an extra copy.",
+"Create the CIB? and LOOSE? columns in tab {0} (columns I and J) to store the condition"
 ]

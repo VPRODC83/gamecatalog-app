@@ -424,5 +424,12 @@
 "El aspecto de siempre, claro u oscuro como el teléfono.",
 "Plástico gris, botones en relieve y títulos en píxel.",
 "Pantalla oscura de fósforo verde, con líneas de barrido.",
-"Papel con trama, letras gruesas y sombras duras."
+"Papel con trama, letras gruesas y sombras duras.",
+"Las columnas I y J de la pestaña {0} ya tienen datos; no creé las columnas CIB? y LOOSE?.",
+"Estado",
+"CIB (completo)",
+"Loose (solo el soporte)",
+"Ya tienes este juego loose ({0}); este sería una mejora a CIB.",
+"Ya tienes este juego CIB ({0}); este loose sería una copia más.",
+"Crear las columnas CIB? y LOOSE? en la pestaña {0} (columnas I y J) para guardar el estado"
 ]

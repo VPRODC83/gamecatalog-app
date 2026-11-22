@@ -65,7 +65,10 @@ fun etiquetas(found: List<io.github.vprodc83.gamecatalog.data.Item>, regiao: Str
     val R = io.github.vprodc83.gamecatalog.core.Regions
     val have = found.filter { it.lista == io.github.vprodc83.gamecatalog.data.Lista.COLECAO }
     val out = ArrayList<Etiqueta>()
-    fun regs(l: List<io.github.vprodc83.gamecatalog.data.Item>) = l.map { it.regiao.ifBlank { tr("sem região") } }.distinct().joinToString(", ")
+    fun regs(l: List<io.github.vprodc83.gamecatalog.data.Item>) = l.map { i ->
+        val c = io.github.vprodc83.gamecatalog.data.Condicao.rotulo(io.github.vprodc83.gamecatalog.data.Condicao.de(i))
+        i.regiao.ifBlank { tr("sem região") } + if (c.isNotBlank()) " · $c" else ""
+    }.distinct().joinToString(", ")
     if (have.isNotEmpty()) {
         val mesma = have.filter { R.same(it.regiao, regiao) }
         out += if (regiao.isNotBlank() && mesma.isEmpty()) Etiqueta("✔ " + tr("Já tenho outra versão ({0}) · na coleção", regs(have)), Outra)

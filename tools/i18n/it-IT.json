@@ -424,5 +424,12 @@
 "L’aspetto di sempre, chiaro o scuro come il telefono.",
 "Plastica grigia, tasti in rilievo e titoli in pixel.",
 "Schermo scuro a fosfori verdi, con linee di scansione.",
-"Carta retinata, lettere spesse e ombre nette."
+"Carta retinata, lettere spesse e ombre nette.",
+"Le colonne I e J della scheda {0} hanno già dati; non ho creato le colonne CIB? e LOOSE?.",
+"Condizione",
+"CIB (completo)",
+"Loose (solo il supporto)",
+"Hai già questo gioco loose ({0}); questo sarebbe un upgrade a CIB.",
+"Hai già questo gioco CIB ({0}); questo loose sarebbe una copia in più.",
+"Crea le colonne CIB? e LOOSE? nella scheda {0} (colonne I e J) per salvare la condizione"
 ]

@@ -112,6 +112,21 @@ class CoreTest {
         assertTrue(e(emptyList(), "").single().contains("fora das listas"))
     }
 
+    /** Melhoria 27: CIB? e LOOSE? da coleção e das compras. */
+    @Test fun condicaoCibLoose() {
+        val C = io.github.vprodc83.gamecatalog.data.Condicao
+        fun it0(flags: List<Pair<String, String>>) = io.github.vprodc83.gamecatalog.data.Item(io.github.vprodc83.gamecatalog.data.Lista.COLECAO, "GAMES", 5, emptyList(), "SFC", "Star Fox", "JAP", flags = flags)
+        assertEquals(C.CIB, C.de(it0(listOf("CIB?" to "S", "LOOSE?" to ""))))
+        assertEquals(C.LOOSE, C.de(it0(listOf("CIB?" to "", "LOOSE?" to "s"))))
+        assertEquals("", C.de(it0(listOf("CIB?" to "", "LOOSE?" to ""))))
+        assertEquals(C.CIB, C.de(it0(listOf("CIB" to "Sim"))))
+        val head = listOf("CONSOLE", "NOME", "EU/USA/BR/JAP/ASIA?", "CIB?", "LOOSE?", "CAIXA?")
+        assertEquals(3, C.colunaCib(head)); assertEquals(4, C.colunaLoose(head))
+        // a etiqueta mostra a condição do que você tem
+        val e = io.github.vprodc83.gamecatalog.ui.etiquetas(listOf(it0(listOf("CIB?" to "", "LOOSE?" to "S"))), "", androidx.compose.ui.graphics.Color.Black).single().texto
+        assertTrue(e, e.contains("JAP · loose"))
+    }
+
     @Test fun pricechartingParse() {
         val html = """<td id="used_price"><span class="price js-price">$45.10</span></td><td id="complete_price"><span class="price">$1,120.00</span></td><td id="new_price"><span>N/A</span></td>"""
         val (l, c, n) = Prices.parseProduct(html)
