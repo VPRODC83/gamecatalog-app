@@ -15,6 +15,7 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.BeforeClass
 import org.junit.Test
+import androidx.compose.ui.graphics.luminance
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -125,6 +126,26 @@ class CoreTest {
         // a etiqueta mostra a condição do que você tem
         val e = io.github.vprodc83.gamecatalog.ui.etiquetas(listOf(it0(listOf("CIB?" to "", "LOOSE?" to "S"))), "", androidx.compose.ui.graphics.Color.Black).single().texto
         assertTrue(e, e.contains("JAP · loose"))
+    }
+
+    /** Todo texto legível em qualquer visual: contraste de pelo menos 4,5:1 (WCAG AA) entre cada cor de texto e cada fundo. */
+    @Test fun visuaisLegiveis() {
+        fun cr(a: androidx.compose.ui.graphics.Color, b: androidx.compose.ui.graphics.Color): Double {
+            val x = a.luminance().toDouble(); val y = b.luminance().toDouble()
+            return (maxOf(x, y) + 0.05) / (minOf(x, y) + 0.05)
+        }
+        val falhas = ArrayList<String>()
+        for (v in io.github.vprodc83.gamecatalog.ui.Visual.entries) for (escuro in listOf(false, true)) {
+            val e = io.github.vprodc83.gamecatalog.ui.estiloDe(v, escuro); val c = e.cores
+            val textos = mapOf("onSurface" to c.onSurface, "onSurfaceVariant" to c.onSurfaceVariant, "primary" to c.primary, "error" to c.error,
+                "ok" to e.ok, "warn" to e.warn, "info" to e.info, "outra" to e.outra)
+            val fundos = mapOf("background" to c.background, "surface" to c.surface, "surfaceVariant" to c.surfaceVariant,
+                "surfaceContainer" to c.surfaceContainer, "surfaceContainerHighest" to c.surfaceContainerHighest)
+            for ((tn, t) in textos) for ((fn, f) in fundos) { val r = cr(t, f); if (r < 4.5) falhas.add("${v.chave}${if (escuro) "/escuro" else ""}: $tn sobre $fn = ${"%.2f".format(r)}") }
+            // botão cheio: texto sobre a cor principal
+            cr(c.onPrimary, c.primary).let { if (it < 4.5) falhas.add("${v.chave}: onPrimary sobre primary = ${"%.2f".format(it)}") }
+        }
+        assertTrue(falhas.joinToString("\n"), falhas.isEmpty())
     }
 
     @Test fun pricechartingParse() {

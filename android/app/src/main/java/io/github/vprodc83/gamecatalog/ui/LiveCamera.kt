@@ -141,7 +141,7 @@ private fun LiveView(m: AppModel, onOpen: (Item) -> Unit, onPick: (Cand) -> Unit
             val e = etiquetas(h.itens, "", MaterialTheme.colorScheme.primary).first()
             val txt = e.texto; val cor = e.cor
             Column(Modifier.offset { IntOffset((h.x - with(density) { 80.dp.toPx() }).toInt().coerceAtLeast(0), (h.y - with(density) { 52.dp.toPx() }).toInt().coerceAtLeast(0)) }
-                .widthIn(max = 180.dp).background(cor, RoundedCornerShape(10.dp))
+                .widthIn(max = 180.dp).background(androidx.compose.ui.graphics.Color(cor.red * .45f, cor.green * .45f, cor.blue * .45f), RoundedCornerShape(10.dp))
                 .clickable { if (h.item != null) onOpen(h.item) else onPick(Cand(h.titulo, consoleFor(m, h.repo), m.catalog?.label(h.repo) ?: "", h.repo, origem = "etiqueta")) }
                 .padding(horizontal = 10.dp, vertical = 6.dp)) {
                 Text(txt, color = Color.White, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelMedium)

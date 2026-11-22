@@ -107,12 +107,19 @@ private fun variavel(res: Int, peso: Int) = Font(res, FontWeight(peso), variatio
 private val Pixel = FontFamily(variavel(R.font.pixelify_sans, 500), variavel(R.font.pixelify_sans, 600), variavel(R.font.pixelify_sans, 700))
 private val Fosforo = FontFamily(Font(R.font.vt323))
 private val Manchete = FontFamily(Font(R.font.bungee))
+// texto comum do CRT: monoespaçada bem desenhada (0 com traço, 1/l/I distintos); a VT323 fica só nos títulos grandes
+private val Mono = FontFamily(Font(R.font.plex_mono_regular, FontWeight.Normal), Font(R.font.plex_mono_medium, FontWeight.Medium),
+    Font(R.font.plex_mono_semibold, FontWeight.SemiBold), Font(R.font.plex_mono_bold, FontWeight.Bold))
 private val Revista = FontFamily(variavel(R.font.rubik, 400), variavel(R.font.rubik, 500), variavel(R.font.rubik, 700), variavel(R.font.rubik, 800))
 
+/**
+ * Fonte decorativa (pixel, terminal, manchete) só nos tamanhos grandes (títulos de tela, de 22sp para cima);
+ * títulos pequenos e todo o resto usam a fonte de leitura, em que letras e números não se confundem.
+ */
 private fun Typography.mapa(titulo: (TextStyle) -> TextStyle, corpo: (TextStyle) -> TextStyle) = Typography(
     displayLarge = titulo(displayLarge), displayMedium = titulo(displayMedium), displaySmall = titulo(displaySmall),
     headlineLarge = titulo(headlineLarge), headlineMedium = titulo(headlineMedium), headlineSmall = titulo(headlineSmall),
-    titleLarge = titulo(titleLarge), titleMedium = titulo(titleMedium), titleSmall = titulo(titleSmall),
+    titleLarge = titulo(titleLarge), titleMedium = corpo(titleMedium).copy(fontWeight = FontWeight.SemiBold), titleSmall = corpo(titleSmall).copy(fontWeight = FontWeight.SemiBold),
     bodyLarge = corpo(bodyLarge), bodyMedium = corpo(bodyMedium), bodySmall = corpo(bodySmall),
     labelLarge = corpo(labelLarge), labelMedium = corpo(labelMedium), labelSmall = corpo(labelSmall),
 )
@@ -130,13 +137,16 @@ val LightColors: ColorScheme = lightColorScheme(
 )
 val DarkColors: ColorScheme = darkColorScheme(
     primary = Color(0xFF8F84FF), onPrimary = Color(0xFF14161B), background = Color(0xFF14161B), surface = Color(0xFF1D2028),
-    surfaceVariant = Color(0xFF23262F), onSurface = Color(0xFFE8EAF0), onSurfaceVariant = Color(0xFF9AA1B0), error = Color(0xFFFF7A70), outline = Color(0xFF2F3440)
+    surfaceVariant = Color(0xFF23262F), onSurface = Color(0xFFE8EAF0), onSurfaceVariant = Color(0xFF9AA1B0), error = Color(0xFFFF7A70), outline = Color(0xFF2F3440),
+    // cartões um pouco mais escuros que o padrão do Material, para o roxo dos botões de texto ficar legível
+    surfaceContainerLowest = Color(0xFF181A20), surfaceContainerLow = Color(0xFF1D2028), surfaceContainer = Color(0xFF1F222A),
+    surfaceContainerHigh = Color(0xFF23262F), surfaceContainerHighest = Color(0xFF282B35)
 )
 
 private val atualClaro = Estilo(LightColors, base, RoundedCornerShape(12.dp), RoundedCornerShape(50), 0.dp, Color.Transparent, 0.dp, false, Color.Transparent,
-    Textura.NENHUMA, Color.Transparent, Color(0xFF1F7A4D), Color(0xFF9A6A00), Color(0xFF1D5FA8), Color(0xFF00796B))
+    Textura.NENHUMA, Color.Transparent, Color(0xFF17663F), Color(0xFF7A5200), Color(0xFF1D5FA8), Color(0xFF00665A))
 private val atualEscuro = Estilo(DarkColors, base, RoundedCornerShape(12.dp), RoundedCornerShape(50), 0.dp, Color.Transparent, 0.dp, false, Color.Transparent,
-    Textura.NENHUMA, Color.Transparent, Color(0xFF1F7A4D), Color(0xFF9A6A00), Color(0xFF1D5FA8), Color(0xFF00796B))
+    Textura.NENHUMA, Color.Transparent, Color(0xFF6FD69B), Color(0xFFF0B44C), Color(0xFF8AB8FF), Color(0xFF4FD1C0))
 
 private val console16: Estilo by lazy {
     val tinta = Color(0xFF1F1D22); val plastico = Color(0xFFECEBE7)
@@ -149,10 +159,10 @@ private val console16: Estilo by lazy {
             surfaceContainerLowest = plastico, surfaceContainerLow = plastico, surfaceContainer = Color(0xFFCFCCC5),
             surfaceContainerHigh = plastico, surfaceContainerHighest = plastico, error = Color(0xFFA3252B),
         ),
-        base.mapa({ it.copy(fontFamily = Pixel, fontWeight = FontWeight.Bold) }, { it }),
+        base.mapa({ it.copy(fontFamily = Pixel, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp) }, { it }),
         RoundedCornerShape(8.dp), RoundedCornerShape(6.dp), 2.dp, tinta, 4.dp, true, Color(0xFFA9A59D),
         Textura.LISTRAS, Color(0xFFCFCCC5),
-        Color(0xFF1F6B3A), Color(0xFF8A5A00), Color(0xFF1D4F96), Color(0xFF1D6B66),
+        Color(0xFF155A2E), Color(0xFF6B4400), Color(0xFF1D4F96), Color(0xFF145651),
     )
 }
 
@@ -169,9 +179,9 @@ private val crt: Estilo by lazy {
             inverseSurface = fosforo, inverseOnSurface = fundo,
         ),
         // a fonte de terminal é pequena: tudo fica 30% maior
-        base.mapa({ it.copy(fontFamily = Fosforo, fontWeight = FontWeight.Normal).maior(1.3f) }, { it.copy(fontFamily = Fosforo, fontWeight = FontWeight.Normal).maior(1.3f) }),
+        base.mapa({ it.copy(fontFamily = Fosforo, fontWeight = FontWeight.Normal).maior(1.3f) }, { it.copy(fontFamily = Mono) }),
         RectangleShape, RectangleShape, 2.dp, Color(0xFF2F6B44), 0.dp, false, Color.Transparent,
-        Textura.VARREDURA, Color(0x47000000),
+        Textura.VARREDURA, Color(0x2E000000),   // linhas leves: não podem apagar o texto
         fosforo, Color(0xFFFFB547), Color(0xFF8FD3FF), Color(0xFF5FE0C8),
     )
 }
@@ -364,7 +374,7 @@ private fun OpcaoVisual(v: Visual, escolhido: Boolean, onPick: () -> Unit) {
                 .padding(8.dp)
         ) {
             androidx.compose.foundation.layout.Column(verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(6.dp)) {
-                androidx.compose.material3.Text("Game Catalog", style = e.tipografia.titleSmall, color = e.cores.onBackground, maxLines = 1)
+                androidx.compose.material3.Text("Game Catalog", style = e.tipografia.titleLarge.copy(fontSize = 16.sp, lineHeight = 18.sp), color = e.cores.onBackground, maxLines = 1)
                 androidx.compose.foundation.layout.Box(
                     Modifier.fillMaxWidth().height(22.dp).sombraDura(e, e.sombra * 0.6f, e.canto)
                         .then(if (e.borda > 0.dp) Modifier.border(e.borda * 0.75f, e.corBorda, e.canto) else Modifier)
