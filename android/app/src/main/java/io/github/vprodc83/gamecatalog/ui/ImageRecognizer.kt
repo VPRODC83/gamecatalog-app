@@ -43,7 +43,7 @@ class ImageRecognizer(private val m: AppModel) {
     private val http = OkHttpClient.Builder().connectTimeout(20, TimeUnit.SECONDS).readTimeout(120, TimeUnit.SECONDS).build()
     // pacotes abertos, do usado há mais tempo para o mais recente; fecha os antigos acima de ~6 mil imagens (≈ 45 MB)
     private val loaded = object : LinkedHashMap<String, List<Entrada>>(8, 0.75f, true) {
-        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, List<Entrada>>?): Boolean = size > 1 && values.sumOf { it.size } > 6000
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, List<Entrada>>?): Boolean = size > 1 && values.sumOf { it.size } > 3500
     }
     private val learned = ArrayList<Entrada>()
 
@@ -159,6 +159,9 @@ class ImageRecognizer(private val m: AppModel) {
             if (faltam.isNotEmpty()) download(faltam, soWifi = true)
         }
     }
+
+    /** Fecha os pacotes abertos (são lidos de novo do arquivo na próxima foto). Chamado quando o Android pede memória. */
+    fun liberar() { synchronized(loaded) { loaded.clear() } }
 
     fun delete(p: Pack) { file(p).delete(); synchronized(loaded) { loaded.remove(p.arquivo) }; version++ }
 

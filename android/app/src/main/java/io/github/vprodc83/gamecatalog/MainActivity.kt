@@ -63,6 +63,12 @@ class MainActivity : ComponentActivity() {
     companion object { val splashDone = androidx.compose.runtime.mutableStateOf(false) }
     private lateinit var model: AppModel
 
+    /** O Android pediu memória (app em segundo plano ou aparelho apertado): fecha os pacotes de imagem abertos. */
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        if (level >= android.content.ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN && ::model.isInitialized) runCatching { model.imagens.liberar() }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         io.github.vprodc83.gamecatalog.ui.CrashLog.install(this, io.github.vprodc83.gamecatalog.ui.Updates.appVersion(this))
@@ -171,4 +177,3 @@ private fun App(m: AppModel) {
         }
     }
 }
-

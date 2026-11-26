@@ -96,18 +96,23 @@ class Catalog(val repos: List<Repo>) {
         private val bad = "\\((Beta|Proto|Demo|Sample|Pirate|Unl|Hack|Aftermarket|Kiosk)".toRegex(RegexOption.IGNORE_CASE)
         /** Versões que não interessam (protótipos, demos, piratas…). */
         fun bad(name: String): Boolean = bad.containsMatchIn(name)
-        fun cleanTitle(n: String): String = n.replace("\\s*\\(.*$".toRegex(), "").replace(" _ ", " / ").trim()
+        private val rePref0 = "^(BR|BRA|BRASIL|BRAZIL|NTSCBR|PALM).*".toRegex()
+        private val rePref1 = "^(JP|JAP|JPN|JAPAO|JAPAN|NTSCJ).*".toRegex()
+        private val rePref2 = "^(EU|EUR|PAL|EUROPA|UK).*".toRegex()
+        private val reParen = "\\(([^)]*)\\)".toRegex()
+        private val parenteses = "\\s*\\(.*$".toRegex()
+        fun cleanTitle(n: String): String = n.replace(parenteses, "").replace(" _ ", " / ").trim()
         fun regionPrefs(r: String?): List<String> {
             val n = Text.norm(r)
             return when {
-                n.matches("^(BR|BRA|BRASIL|BRAZIL|NTSCBR|PALM).*".toRegex()) -> listOf("Brazil", "USA", "World", "Europe", "Japan")
-                n.matches("^(JP|JAP|JPN|JAPAO|JAPAN|NTSCJ).*".toRegex()) -> listOf("Japan", "Asia", "World", "USA")
-                n.matches("^(EU|EUR|PAL|EUROPA|UK).*".toRegex()) -> listOf("Europe", "World", "USA")
+                n.matches(rePref0) -> listOf("Brazil", "USA", "World", "Europe", "Japan")
+                n.matches(rePref1) -> listOf("Japan", "Asia", "World", "USA")
+                n.matches(rePref2) -> listOf("Europe", "World", "USA")
                 else -> listOf("USA", "World", "Europe", "Japan")
             }
         }
         fun regionRank(name: String, pref: List<String>): Int {
-            val r0 = "\\(([^)]*)\\)".toRegex().find(name)?.groupValues?.get(1) ?: ""
+            val r0 = reParen.find(name)?.groupValues?.get(1) ?: ""
             val i = pref.indexOfFirst { p -> r0 == p || r0.split(", ").contains(p) }
             return if (i < 0) 9 else i
         }

@@ -393,7 +393,7 @@ class Repo(private val dir: File, val sheets: Sheets) {
         if (names.isEmpty()) return emptyList()  // nome ainda vazio (ex.: tela "Novo jogo" recém-aberta)
         return _state.value.items.mapNotNull { i ->
             if (!console.isNullOrBlank() && i.console.isNotBlank() && platformOf(console).ifEmpty { Text.norm(console) } != platformOf(i.console).ifEmpty { Text.norm(i.console) }) return@mapNotNull null
-            val s = names.maxOf { n -> if (Text.score(n, i.nome) >= 0.82 && Text.score(i.nome, n) >= 0.6) Text.score(n, i.nome) else 0.0 }
+            val s = names.maxOf { n -> val a = Text.score(n, i.nome); if (a >= 0.82 && Text.score(i.nome, n) >= 0.6) a else 0.0 }
             if (s > 0) Found(i, s) else null
         }.sortedByDescending { it.score }
     }

@@ -5,18 +5,27 @@ package io.github.vprodc83.gamecatalog.core
  * para saber se dois exemplares do mesmo jogo são a mesma versão ou versões diferentes.
  */
 object Regions {
+    private val reParen = "\\(([^)]*)\\)".toRegex()
+    // compilados uma vez só (group roda em cada comparação de versões)
+    private val reBR = "^(BR|BRA|BRASIL|BRAZIL|NTSCBR|PALM|TECTOY).*".toRegex()
+    private val reJP = "^(JP|JAP|JPN|JAPAO|JAPAN|NTSCJ|NTSCJP).*".toRegex()
+    private val reUS = "^(US|USA|EUA|NTSCU|NTSCUS|NTSC|NA|AMERICA|AMERICANO|AMERICANA).*".toRegex()
+    private val reEU = "^(EU|EUR|EUROPA|EUROPE|PAL|UK|ALEMANHA|GERMANY|FRANCA|FRANCE|ESPANHA|SPAIN|ITALIA|ITALY).*".toRegex()
+    private val reKR = "^(KR|KOR|KOREA|COREIA).*".toRegex()
+    private val reCN = "^(CN|CHN|CHINA).*".toRegex()
+    private val reASIA = "^(ASIA|ASI|HK|HONGKONG|TW|TAIWAN).*".toRegex()
     /** BR, JP, US, EU, ASIA, KR, CN… ou o próprio texto normalizado; vazio quando não foi informada. */
     fun group(r: String?): String {
         val n = Text.norm(r).replace(" ", "")
         return when {
             n.isEmpty() -> ""
-            n.matches("^(BR|BRA|BRASIL|BRAZIL|NTSCBR|PALM|TECTOY).*".toRegex()) -> "BR"
-            n.matches("^(JP|JAP|JPN|JAPAO|JAPAN|NTSCJ|NTSCJP).*".toRegex()) -> "JP"
-            n.matches("^(US|USA|EUA|NTSCU|NTSCUS|NTSC|NA|AMERICA|AMERICANO|AMERICANA).*".toRegex()) -> "US"
-            n.matches("^(EU|EUR|EUROPA|EUROPE|PAL|UK|ALEMANHA|GERMANY|FRANCA|FRANCE|ESPANHA|SPAIN|ITALIA|ITALY).*".toRegex()) -> "EU"
-            n.matches("^(KR|KOR|KOREA|COREIA).*".toRegex()) -> "KR"
-            n.matches("^(CN|CHN|CHINA).*".toRegex()) -> "CN"
-            n.matches("^(ASIA|ASI|HK|HONGKONG|TW|TAIWAN).*".toRegex()) -> "ASIA"
+            n.matches(reBR) -> "BR"
+            n.matches(reJP) -> "JP"
+            n.matches(reUS) -> "US"
+            n.matches(reEU) -> "EU"
+            n.matches(reKR) -> "KR"
+            n.matches(reCN) -> "CN"
+            n.matches(reASIA) -> "ASIA"
             else -> n
         }
     }
@@ -26,7 +35,7 @@ object Regions {
 
     /** Região escrita no nome do catálogo: "Super Mario World (USA)" → US; "(USA, Europe)" → US. */
     fun fromCatalogName(name: String): String {
-        val r = "\\(([^)]*)\\)".toRegex().find(name)?.groupValues?.get(1) ?: return ""
+        val r = reParen.find(name)?.groupValues?.get(1) ?: return ""
         return r.split(",").map { it.trim() }.map { p ->
             when (p) { "Brazil" -> "BR"; "Japan" -> "JP"; "USA" -> "US"; "Korea" -> "KR"; "China" -> "CN"; "Asia", "Hong Kong", "Taiwan" -> "ASIA"
                 "Europe", "UK", "Germany", "France", "Spain", "Italy", "Netherlands", "Sweden", "Australia" -> "EU"; else -> "" }

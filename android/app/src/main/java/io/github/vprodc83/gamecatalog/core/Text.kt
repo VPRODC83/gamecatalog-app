@@ -7,16 +7,22 @@ object Text {
     private val marks = "\\p{Mn}+".toRegex()
     private val paren = "\\([^)]*\\)|\\[[^\\]]*]".toRegex()
     private val nonAlnum = "[^a-z0-9]+".toRegex()
+    // padrões compilados uma vez só (norm e words rodam milhares de vezes por busca)
+    private val naoAZ09 = "[^A-Z0-9]".toRegex()
+    private val sufixo = " · .*$".toRegex()
+    private val naoNome = "[^A-Z0-9:&' -]".toRegex()
+    private val espacos = "\\s+".toRegex()
+    private val edicao = "\\b(DEFINITIVE|COMPLETE|GAME OF THE YEAR|GOTY|COLLECTORS|SPECIAL|LIMITED|DELUXE) EDITION\\b".toRegex()
 
     fun stripAccents(s: String): String = Normalizer.normalize(s, Normalizer.Form.NFD).replace(marks, "")
 
     /** Chave sem acentos, maiúscula, só letras e números: "Mega Drive" → "MEGADRIVE". */
-    fun norm(s: String?): String = stripAccents(s ?: "").uppercase().replace("[^A-Z0-9]".toRegex(), "")
+    fun norm(s: String?): String = stripAccents(s ?: "").uppercase().replace(naoAZ09, "")
 
     /** Palavras normalizadas para comparar: minúsculas, sem acentos, sem parênteses e sem pontuação. */
     fun words(s: String?): String = stripAccents(s ?: "").lowercase()
         .replace("*lacrado*", " ")
-        .replace(" · .*$".toRegex(), "")
+        .replace(sufixo, "")
         .replace(paren, " ")
         .replace(nonAlnum, " ")
         .trim()
@@ -37,12 +43,12 @@ object Text {
      * por fim, tenta sem a edição.
      */
     fun nameVariants(s: String): List<String> {
-        val base = stripAccents(s).uppercase().replace(noiseRe, " ").replace("[^A-Z0-9:&' -]".toRegex(), " ")
+        val base = stripAccents(s).uppercase().replace(noiseRe, " ").replace(naoNome, " ")
         var clean = " $base "
         noiseWords.forEach { w -> clean = clean.replace(" $w ", " ") }
-        clean = clean.replace("\\s+".toRegex(), " ").trim()
+        clean = clean.replace(espacos, " ").trim()
         var trans = clean; editions.forEach { (pt, en) -> trans = trans.replace(pt, en) }
-        val noEd = trans.replace("\\b(DEFINITIVE|COMPLETE|GAME OF THE YEAR|GOTY|COLLECTORS|SPECIAL|LIMITED|DELUXE) EDITION\\b".toRegex(), "").replace("\\s+".toRegex(), " ").trim()
+        val noEd = trans.replace(edicao, "").replace(espacos, " ").trim()
         return listOf(s.trim(), clean, trans, noEd).filter { it.length >= 2 }.distinctBy { norm(it) }
     }
 
