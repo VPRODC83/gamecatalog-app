@@ -245,6 +245,7 @@
 "Não achou?": "Not found?",
 "Não consegui abrir a câmera deste celular.": "Couldn't open this phone's camera.",
 "Não consegui abrir o catálogo de jogos ({0}). A busca pela planilha continua funcionando.": "I couldn't open the game catalog ({0}). Searching the spreadsheet still works.",
+"Não consegui criar as colunas CIB? e LOOSE? ({0}); a condição foi na observação.": "Couldn't create the CIB? and LOOSE? columns ({0}); the condition went into the notes.",
 "Não consegui ler a foto: {0}": "I couldn't read the photo: {0}",
 "Não consegui ler texto na foto. Use o Google Lens ou a busca por nome.": "I couldn't read any text in the photo. Use Google Lens or search by name.",
 "Não consegui verificar agora.": "I couldn't check right now.",

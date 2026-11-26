@@ -151,10 +151,13 @@ fun BuyDialog(m: AppModel, console0: String, nome0: String, want: Item?, regiao0
     val have = remember(nome, console) { m.repo.find(nome, console.ifBlank { null }).filter { it.item.lista == Lista.COLECAO }.map { it.item } }
     ConfirmDialog(tr("Comprei"), tr("Anotar na planilha"), onClose, enabled = nome.isNotBlank(), onConfirm = {
         onClose(); m.run {
-            if (cond.isNotBlank() && !temColunas && criar) m.repo.createBuyCondicao()
+            // se não der para criar as colunas, a compra é anotada assim mesmo (a condição vai na observação)
+            val falhaColunas = if (cond.isNotBlank() && !temColunas && criar) runCatching { m.repo.createBuyCondicao() }.exceptionOrNull() else null
             // sem as colunas (e sem criar), a condição vai na observação
             val obs2 = if (cond.isNotBlank() && !m.repo.buyHasCondicao()) listOf(obs, io.github.vprodc83.gamecatalog.data.Condicao.rotulo(cond).uppercase()).filter { it.isNotBlank() }.joinToString(" · ") else obs
-            val w = m.repo.buy(console, nome.trim(), regiao, obs2, want, cond); m.repo.refresh(); m.message = w ?: tr("Anotado em {0}. Quando chegar, toque em Recebi.", cfg?.compras)
+            val w = m.repo.buy(console, nome.trim(), regiao, obs2, want, cond); m.repo.refresh()
+            m.message = listOfNotNull(w ?: tr("Anotado em {0}. Quando chegar, toque em Recebi.", cfg?.compras),
+                falhaColunas?.let { tr("Não consegui criar as colunas CIB? e LOOSE? ({0}); a condição foi na observação.", it.message ?: "") }).joinToString(" ")
         }
     }) {
         ConsoleField(m, console) { console = it }

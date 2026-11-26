@@ -245,6 +245,7 @@
 "Não achou?": "Nicht gefunden?",
 "Não consegui abrir a câmera deste celular.": "Die Kamera dieses Handys ließ sich nicht öffnen.",
 "Não consegui abrir o catálogo de jogos ({0}). A busca pela planilha continua funcionando.": "Der Spielekatalog konnte nicht geöffnet werden ({0}). Die Suche in der Tabelle funktioniert weiterhin.",
+"Não consegui criar as colunas CIB? e LOOSE? ({0}); a condição foi na observação.": "Die Spalten CIB? und LOOSE? konnten nicht angelegt werden ({0}); der Zustand steht in der Bemerkung.",
 "Não consegui ler a foto: {0}": "Das Foto konnte nicht gelesen werden: {0}",
 "Não consegui ler texto na foto. Use o Google Lens ou a busca por nome.": "Auf dem Foto konnte kein Text gelesen werden. Nutze Google Lens oder die Namenssuche.",
 "Não consegui verificar agora.": "Konnte gerade nicht prüfen.",

@@ -245,6 +245,7 @@
 "Não achou?": "못 찾았나요?",
 "Não consegui abrir a câmera deste celular.": "이 휴대폰의 카메라를 열 수 없습니다.",
 "Não consegui abrir o catálogo de jogos ({0}). A busca pela planilha continua funcionando.": "게임 카탈로그를 열지 못했습니다 ({0}). 스프레드시트 검색은 계속 사용할 수 있습니다.",
+"Não consegui criar as colunas CIB? e LOOSE? ({0}); a condição foi na observação.": "CIB?와 LOOSE? 열을 만들지 못했습니다({0}). 상태는 메모에 적었습니다.",
 "Não consegui ler a foto: {0}": "사진을 읽지 못했습니다: {0}",
 "Não consegui ler texto na foto. Use o Google Lens ou a busca por nome.": "사진에서 글자를 읽지 못했습니다. Google Lens나 이름 검색을 사용하세요.",
 "Não consegui verificar agora.": "지금은 확인하지 못했습니다.",

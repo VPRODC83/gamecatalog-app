@@ -245,6 +245,7 @@
 "Não achou?": "見つからない？",
 "Não consegui abrir a câmera deste celular.": "この端末のカメラを開けませんでした。",
 "Não consegui abrir o catálogo de jogos ({0}). A busca pela planilha continua funcionando.": "ゲームカタログを開けませんでした（{0}）。スプレッドシートの検索は引き続き使えます。",
+"Não consegui criar as colunas CIB? e LOOSE? ({0}); a condição foi na observação.": "CIB? と LOOSE? の列を作成できませんでした（{0}）。状態はメモに入れました。",
 "Não consegui ler a foto: {0}": "写真を読み取れませんでした：{0}",
 "Não consegui ler texto na foto. Use o Google Lens ou a busca por nome.": "写真から文字を読み取れませんでした。Google Lens か名前検索を使ってください。",
 "Não consegui verificar agora.": "今は確認できませんでした。",

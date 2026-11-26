@@ -245,6 +245,7 @@
 "Não achou?": "ไม่พบใช่ไหม?",
 "Não consegui abrir a câmera deste celular.": "เปิดกล้องของโทรศัพท์เครื่องนี้ไม่ได้",
 "Não consegui abrir o catálogo de jogos ({0}). A busca pela planilha continua funcionando.": "เปิดแคตตาล็อกเกมไม่ได้ ({0}) การค้นหาในสเปรดชีตยังใช้ได้",
+"Não consegui criar as colunas CIB? e LOOSE? ({0}); a condição foi na observação.": "สร้างคอลัมน์ CIB? และ LOOSE? ไม่ได้ ({0}) จึงใส่สภาพไว้ในหมายเหตุ",
 "Não consegui ler a foto: {0}": "อ่านรูปไม่ได้: {0}",
 "Não consegui ler texto na foto. Use o Google Lens ou a busca por nome.": "อ่านข้อความในรูปไม่ได้ ใช้ Google Lens หรือค้นหาตามชื่อ",
 "Não consegui verificar agora.": "ตรวจสอบไม่ได้ในตอนนี้",

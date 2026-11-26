@@ -431,5 +431,6 @@
 "Loose (media only)",
 "You already have this game loose ({0}); this would be an upgrade to CIB.",
 "You already have this game CIB ({0}); this loose one would be an extra copy.",
-"Create the CIB? and LOOSE? columns in tab {0} (columns I and J) to store the condition"
+"Create the CIB? and LOOSE? columns in tab {0} (columns I and J) to store the condition",
+"Couldn't create the CIB? and LOOSE? columns ({0}); the condition went into the notes."
 ]

@@ -431,5 +431,6 @@
 "Loose (nur Datenträger)",
 "Du hast dieses Spiel bereits loose ({0}); dies wäre ein Upgrade auf CIB.",
 "Du hast dieses Spiel bereits CIB ({0}); dieses Loose wäre eine weitere Kopie.",
-"Spalten CIB? und LOOSE? im Tab {0} anlegen (Spalten I und J), um den Zustand zu speichern"
+"Spalten CIB? und LOOSE? im Tab {0} anlegen (Spalten I und J), um den Zustand zu speichern",
+"Die Spalten CIB? und LOOSE? konnten nicht angelegt werden ({0}); der Zustand steht in der Bemerkung."
 ]

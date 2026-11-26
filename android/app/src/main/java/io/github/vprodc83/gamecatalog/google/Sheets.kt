@@ -121,6 +121,16 @@ class Sheets(private val token: suspend () -> String) {
         call("POST", "$base$id:batchUpdate", JSONObject().put("requests", reqs))
     }
 
+    /** Tamanho da grade de uma aba: (linhas, colunas). Ler fora dela faz o Google recusar o pedido. */
+    suspend fun gridSize(id: String, title: String): Pair<Int, Int> {
+        val arr = call("GET", "$base$id?fields=sheets.properties(title,gridProperties(rowCount,columnCount))").optJSONArray("sheets") ?: JSONArray()
+        for (i in 0 until arr.length()) {
+            val p = arr.getJSONObject(i).getJSONObject("properties")
+            if (p.optString("title") == title) { val g = p.optJSONObject("gridProperties"); return (g?.optInt("rowCount") ?: 1000) to (g?.optInt("columnCount") ?: 26) }
+        }
+        throw GoogleError(404, "Aba $title não encontrada")
+    }
+
     /** Número interno da aba (usado para apagar linhas). */
     suspend fun tabId(id: String, title: String): Int {
         val arr = call("GET", "$base$id?fields=sheets.properties(sheetId,title)").optJSONArray("sheets") ?: JSONArray()

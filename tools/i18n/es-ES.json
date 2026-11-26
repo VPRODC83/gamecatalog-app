@@ -431,5 +431,6 @@
 "Loose (solo el soporte)",
 "Ya tienes este juego loose ({0}); este sería una mejora a CIB.",
 "Ya tienes este juego CIB ({0}); este loose sería una copia más.",
-"Crear las columnas CIB? y LOOSE? en la pestaña {0} (columnas I y J) para guardar el estado"
+"Crear las columnas CIB? y LOOSE? en la pestaña {0} (columnas I y J) para guardar el estado",
+"No pude crear las columnas CIB? y LOOSE? ({0}); el estado quedó en la observación."
 ]

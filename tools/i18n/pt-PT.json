@@ -431,5 +431,6 @@
 "Loose (só o suporte)",
 "Já tem este jogo loose ({0}); este seria uma melhoria para CIB.",
 "Já tem este jogo CIB ({0}); este loose seria uma cópia a mais.",
-"Criar as colunas CIB? e LOOSE? na aba {0} (colunas I e J) para guardar a condição"
+"Criar as colunas CIB? e LOOSE? na aba {0} (colunas I e J) para guardar a condição",
+"Não consegui criar as colunas CIB? e LOOSE? ({0}); a condição foi para a observação."
 ]

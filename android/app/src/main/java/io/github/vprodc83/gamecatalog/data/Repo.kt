@@ -272,7 +272,9 @@ class Repo(private val dir: File, val sheets: Sheets) {
         ensureTab(tab, Config.BUY_HEAD)
         val h = sheets.get(sheetId, "${q(tab)}!A1:J1").firstOrNull() ?: emptyList()
         if (Condicao.colunaCib(h) == 8 && Condicao.colunaLoose(h) == 9) { _state.value = _state.value.copy(buyHead = pad(h, 10)); return }
-        val ij = sheets.get(sheetId, "${q(tab)}!I1:J5000")
+        // só confere I e J se a aba já tiver essas colunas (a grade pode acabar em H)
+        val (linhas, colunas) = sheets.gridSize(sheetId, tab)
+        val ij = if (colunas > 8) sheets.get(sheetId, "${q(tab)}!I1:${col(minOf(colunas, 10) - 1)}${maxOf(1, linhas)}") else emptyList()
         if (ij.any { r -> r.any { it.isNotBlank() } }) throw IllegalStateException(tr("As colunas I e J da aba {0} já têm dados; não criei as colunas CIB? e LOOSE?.", tab))
         val tid = sheets.tabId(sheetId, tab)
         sheets.addColumnToTable(sheetId, tid, 8, "CIB?", sheets.tables(sheetId).firstOrNull { it.tab == tab && it.startCol == 0 && it.startRow == 0 })

@@ -245,6 +245,7 @@
 "Não achou?": "没找到？",
 "Não consegui abrir a câmera deste celular.": "无法打开这部手机的相机。",
 "Não consegui abrir o catálogo de jogos ({0}). A busca pela planilha continua funcionando.": "无法打开游戏目录（{0}）。表格搜索仍可使用。",
+"Não consegui criar as colunas CIB? e LOOSE? ({0}); a condição foi na observação.": "无法创建 CIB? 和 LOOSE? 列（{0}）；品相已写入备注。",
 "Não consegui ler a foto: {0}": "无法读取照片：{0}",
 "Não consegui ler texto na foto. Use o Google Lens ou a busca por nome.": "无法读取照片中的文字。请使用 Google Lens 或按名称搜索。",
 "Não consegui verificar agora.": "暂时无法检查。",
