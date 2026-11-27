@@ -14,6 +14,9 @@ import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.performScrollToIndex
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.unit.LayoutDirection
 import io.github.vprodc83.gamecatalog.data.Config
 import io.github.vprodc83.gamecatalog.data.Lista
@@ -44,12 +47,13 @@ class ScreensTest {
     @get:Rule val rule = createAndroidComposeRule<ComponentActivity>()
     private val out = File("build/screens").apply { mkdirs() }
 
-    private fun seed(): AppModel {
+    private fun seed(extra: Int = 0): AppModel {
         val ctx = rule.activity
         val cfg = Config.build(Config.Colecao("GAMES", 0, 1, 2, 3), listOf(Config.Procurado("SFC", 0, 1, -1, "SFC", -1)), "BUYING", null)
         File(ctx.filesDir, "ajustes.json").writeText(JSONObject().put("sheetId", "teste").toString())
         val games = listOf(listOf("CONSOLE", "NOME", "EU/USA/BR/JAP/ASIA", "CIB"), listOf("SNES", "Super Mario World", "USA", "SIM"),
-            listOf("SFC", "Rockman X", "JAP", ""), listOf("MD", "Sonic the Hedgehog", "BR", "SIM"))
+            listOf("SFC", "Rockman X", "JAP", ""), listOf("MD", "Sonic the Hedgehog", "BR", "SIM")) +
+            (1..extra).map { listOf("SNES", "Jogo de teste %02d".format(it), "USA", "") }
         val sfc = listOf(listOf("NOME", "STATUS"), listOf("Final Fantasy VI", ""), listOf("Seiken Densetsu 3", "COMPRADO"), listOf("Rockman X", "COMPRADO"))
         val buy = listOf(listOf("DATA", "CONSOLE", "NOME", "REGIAO", "LISTA", "STATUS", "RECEBIDO_EM", "OBS"), listOf("01/11/2026", "N64", "Zelda Ocarina of Time", "USA", "", "COMPRADO", "", "OLX"))
         val vals = JSONArray(listOf(games, sfc, buy).map { t -> JSONArray(t.map { JSONArray(it) }) })
@@ -91,6 +95,30 @@ class ScreensTest {
     @Test fun crtFicha() { val m = seed(); noVisual(io.github.vprodc83.gamecatalog.ui.Visual.CRT) { shot("9b-crt-ficha") { DetailScreen(m, m.repo.state.value.of(Lista.COLECAO)[1]) {} } } }
     @Test fun revistaColecao() { val m = seed(); noVisual(io.github.vprodc83.gamecatalog.ui.Visual.REVISTA) { shot("10a-revista-colecao") { ListScreen(m, Lista.COLECAO) {} } } }
     @Test fun revistaAjustes() { val m = seed(); noVisual(io.github.vprodc83.gamecatalog.ui.Visual.REVISTA) { shot("10b-revista-ajustes") { SettingsScreen(m, {}, {}, {}) } } }
+
+    /** Melhoria 28: abrir um jogo e voltar mantém a lista na mesma posição. */
+    @Test fun listaMantemPosicao() {
+        val m = seed(40)
+        var aberto by androidx.compose.runtime.mutableStateOf<io.github.vprodc83.gamecatalog.data.Item?>(null)
+        rule.setContent {
+            io.github.vprodc83.gamecatalog.ui.TemaDoApp(false) {
+                val h = androidx.compose.runtime.saveable.rememberSaveableStateHolder(); val o = aberto
+                if (o != null) DetailScreen(m, o) { aberto = null }
+                else h.SaveableStateProvider("lista-COLECAO") { ListScreen(m, Lista.COLECAO) { aberto = it } }
+            }
+        }
+        rule.onNode(androidx.compose.ui.test.hasScrollToIndexAction()).performScrollToIndex(30)
+        rule.waitForIdle()
+        fun visiveis() = rule.onAllNodes(androidx.compose.ui.test.hasText("Jogo de teste", substring = true)).fetchSemanticsNodes()
+            .mapNotNull { n -> n.config.getOrElseNullable(androidx.compose.ui.semantics.SemanticsProperties.Text) { null }?.joinToString { t -> t.text } }.sorted()
+        val antes = visiveis()
+        assertTrue("rolou: $antes", antes.isNotEmpty())
+        rule.runOnIdle { aberto = m.repo.state.value.of(Lista.COLECAO).first() }
+        rule.waitForIdle()
+        rule.runOnIdle { aberto = null }
+        rule.waitForIdle()
+        org.junit.Assert.assertEquals(antes, visiveis())
+    }
 
     @Test fun ficha() { val m = seed(); shot("2-ficha") { DetailScreen(m, m.repo.state.value.of(Lista.COLECAO)[1]) {} } }
     @Test fun identificar() { val m = seed(); shot("3-identificar") { IdentifyScreen(m) {} } }

@@ -55,8 +55,10 @@ import java.io.File
 fun ListScreen(m: AppModel, lista: Lista, onOpen: (Item) -> Unit) {
     val st by m.repo.state.collectAsState()
     @Suppress("UNUSED_VARIABLE") val pv = m.photosVersion
-    var q by remember(lista) { mutableStateOf("") }
-    var console by remember(lista) { mutableStateOf("") }
+    // guardados entre idas à ficha do jogo (melhoria 28): busca, filtro e a rolagem da lista
+    var q by androidx.compose.runtime.saveable.rememberSaveable(lista) { mutableStateOf("") }
+    var console by androidx.compose.runtime.saveable.rememberSaveable(lista) { mutableStateOf("") }
+    val rolagem = androidx.compose.foundation.lazy.rememberLazyListState()
     val all = remember(st, lista) { st.of(lista) }
     val consoles = remember(all) { all.map { it.console.uppercase() }.filter { it.isNotBlank() }.distinct().sorted() }
     val ctx = LocalContext.current
@@ -68,7 +70,7 @@ fun ListScreen(m: AppModel, lista: Lista, onOpen: (Item) -> Unit) {
         val f = all.filter { (console.isEmpty() || it.console.equals(console, true)) && (q.isBlank() || T.score(q, it.nome) >= 0.6 || T.norm(it.nome).contains(T.norm(q))) }
         if (q.isNotBlank()) f.sortedByDescending { T.score(q, it.nome) } else sortItems(m, f, ordem)
     }
-    LazyColumn(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    LazyColumn(Modifier.fillMaxWidth().padding(horizontal = 16.dp), state = rolagem, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         item {
             Column(Modifier.padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(value = q, onValueChange = { q = it }, label = { Text(tr("Procurar em {0}", tr(lista.titulo).lowercase())) }, singleLine = true, leadingIcon = { Icon(Icons.Default.Search, null) }, modifier = Modifier.fillMaxWidth())

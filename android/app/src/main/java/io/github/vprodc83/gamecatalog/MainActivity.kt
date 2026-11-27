@@ -115,6 +115,7 @@ private fun App(m: AppModel) {
     var setup by remember { mutableStateOf(Setup.CARREGANDO) }
     var tab by remember { mutableStateOf(Tab.IDENTIFICAR) }
     var open by remember { mutableStateOf<Item?>(null) }
+    val listas = androidx.compose.runtime.saveable.rememberSaveableStateHolder()
     val snack = remember { SnackbarHostState() }
 
     fun next() {
@@ -167,9 +168,10 @@ private fun App(m: AppModel) {
                     if (o != null) DetailScreen(m, o) { open = null }
                     else when (tab) {
                         Tab.IDENTIFICAR -> IdentifyScreen(m) { open = it }
-                        Tab.COLECAO -> ListScreen(m, Lista.COLECAO) { open = it }
-                        Tab.PROCURADOS -> ListScreen(m, Lista.PROCURADO) { open = it }
-                        Tab.COMPRAS -> ListScreen(m, Lista.COMPRADO) { open = it }
+                        // cada lista guarda a sua rolagem, busca e filtro enquanto a ficha do jogo (ou outra aba) está aberta
+                        Tab.COLECAO -> listas.SaveableStateProvider("lista-COLECAO") { ListScreen(m, Lista.COLECAO) { open = it } }
+                        Tab.PROCURADOS -> listas.SaveableStateProvider("lista-PROCURADO") { ListScreen(m, Lista.PROCURADO) { open = it } }
+                        Tab.COMPRAS -> listas.SaveableStateProvider("lista-COMPRADO") { ListScreen(m, Lista.COMPRADO) { open = it } }
                         Tab.AJUSTES -> SettingsScreen(m, onChangeSheet = { setup = Setup.PLANILHA }, onMapping = { setup = Setup.COLUNAS }, onSignedOut = { setup = Setup.LOGIN })
                     }
                 }
