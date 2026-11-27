@@ -432,5 +432,10 @@
 "Vous avez déjà ce jeu en loose ({0}) ; celui-ci serait une amélioration en CIB.",
 "Vous avez déjà ce jeu en CIB ({0}) ; ce loose serait un exemplaire de plus.",
 "Créer les colonnes CIB? et LOOSE? dans l’onglet {0} (colonnes I et J) pour garder l’état",
-"Impossible de créer les colonnes CIB? et LOOSE? ({0}) ; l’état a été mis dans la remarque."
+"Impossible de créer les colonnes CIB? et LOOSE? ({0}) ; l’état a été mis dans la remarque.",
+"Copier la liste",
+"Liste copiée. Il suffit de la coller dans WhatsApp.",
+"acheté le {0}",
+"Console : {0}",
+"Recherche : « {0} »"
 ]

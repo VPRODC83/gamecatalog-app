@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.HorizontalDivider
@@ -79,10 +80,24 @@ fun ListScreen(m: AppModel, lista: Lista, onOpen: (Item) -> Unit) {
                 if (consoles.size > 1) Picker(tr("Console"), console, listOf("" to tr("Todos ({0})", all.size)) + consoles.map { c -> c to "${cn(c)} (${all.count { it.console.equals(c, true) }})" }) { console = it }
                 if (lista == Lista.COLECAO && st.config != null) CollectionTools(m)
                 if (lista == Lista.COLECAO && all.isNotEmpty()) CoverUpdateCard(m)
-                Hint(when {
-                    st.offline -> tr("Sem internet: mostrando a última cópia salva no aparelho. {0} jogo(s).", shown.size)
-                    else -> tr("{0} jogo(s)", shown.size)
-                })
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Hint(when {
+                            st.offline -> tr("Sem internet: mostrando a última cópia salva no aparelho. {0} jogo(s).", shown.size)
+                            else -> tr("{0} jogo(s)", shown.size)
+                        })
+                    }
+                    // melhoria 29: copia o que está na tela (busca, console e ordem aplicados) para colar no WhatsApp
+                    if (shown.isNotEmpty()) TextButton(onClick = {
+                        val texto = textoParaCopiar(m, lista, shown, q, console, ordem)
+                        val cm = ctx.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                        cm.setPrimaryClip(android.content.ClipData.newPlainText(tr(lista.titulo), texto))
+                        android.widget.Toast.makeText(ctx, tr("Lista copiada. É só colar no WhatsApp."), android.widget.Toast.LENGTH_SHORT).show()
+                    }) {
+                        Icon(Icons.Default.ContentCopy, null, Modifier.padding(end = 6.dp))
+                        Text(tr("Copiar lista"))
+                    }
+                }
             }
         }
         if (all.isEmpty()) item {
@@ -99,6 +114,34 @@ fun ListScreen(m: AppModel, lista: Lista, onOpen: (Item) -> Unit) {
         }) { onOpen(i) } }
         item { Spacer8() }
     }
+}
+
+/**
+ * Texto da lista como está na tela, formatado para o WhatsApp (*negrito*, _itálico_) (melhoria 29).
+ * Ordenada por console (sem filtro): um bloco por console. Com filtro de console: o console vai só no cabeçalho.
+ */
+fun textoParaCopiar(m: AppModel, lista: Lista, shown: List<Item>, q: String, console: String, ordem: String): String {
+    fun linha(i: Item, comConsole: Boolean): String {
+        val partes = mutableListOf<String>()
+        if (comConsole && i.console.isNotBlank()) partes += cn(i.console.uppercase())
+        if (i.regiao.isNotBlank()) partes += i.regiao
+        io.github.vprodc83.gamecatalog.data.Condicao.rotulo(io.github.vprodc83.gamecatalog.data.Condicao.de(i)).let { if (it.isNotEmpty()) partes += it }
+        if (lista == Lista.COMPRADO && i.data.isNotBlank()) partes += tr("comprado em {0}", i.data)
+        return "• " + i.nome.trim() + if (partes.isEmpty()) "" else " (" + partes.joinToString(" · ") + ")"
+    }
+    val sb = StringBuilder()
+    sb.append('*').append(tr(lista.titulo)).append("* — ").append(tr("{0} jogo(s)", shown.size)).append('\n')
+    val filtros = listOfNotNull(console.ifBlank { null }?.let { tr("Console: {0}", cn(it)) }, q.trim().ifBlank { null }?.let { tr("Busca: \"{0}\"", it) })
+    if (filtros.isNotEmpty()) sb.append('_').append(filtros.joinToString(" · ")).append("_\n")
+    sb.append('\n')
+    if (ordem == "console" && console.isBlank() && q.isBlank()) {
+        shown.groupBy { it.console.uppercase() }.entries.forEachIndexed { n, (c, l) ->
+            if (n > 0) sb.append('\n')
+            sb.append('*').append(cn(c).ifBlank { "?" }).append("* (").append(l.size).append(")\n")
+            l.forEach { sb.append(linha(it, false)).append('\n') }
+        }
+    } else shown.forEach { sb.append(linha(it, console.isBlank())).append('\n') }
+    return sb.toString().trimEnd()
 }
 
 /** Opções de ordenação da lista (melhoria 12). */

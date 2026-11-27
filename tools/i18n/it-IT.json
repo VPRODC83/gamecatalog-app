@@ -432,5 +432,10 @@
 "Hai già questo gioco loose ({0}); questo sarebbe un upgrade a CIB.",
 "Hai già questo gioco CIB ({0}); questo loose sarebbe una copia in più.",
 "Crea le colonne CIB? e LOOSE? nella scheda {0} (colonne I e J) per salvare la condizione",
-"Non sono riuscito a creare le colonne CIB? e LOOSE? ({0}); la condizione è finita nella nota."
+"Non sono riuscito a creare le colonne CIB? e LOOSE? ({0}); la condizione è finita nella nota.",
+"Copia elenco",
+"Elenco copiato. Basta incollarlo su WhatsApp.",
+"acquistato il {0}",
+"Console: {0}",
+"Ricerca: \"{0}\""
 ]

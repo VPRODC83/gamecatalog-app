@@ -120,6 +120,21 @@ class ScreensTest {
         org.junit.Assert.assertEquals(antes, visiveis())
     }
 
+    /** Melhoria 29: texto copiado para o WhatsApp respeita filtro e ordem. */
+    @Test fun copiarLista() {
+        val m = seed()
+        val col = m.repo.state.value.of(Lista.COLECAO)
+        val porConsole = io.github.vprodc83.gamecatalog.ui.textoParaCopiar(m, Lista.COLECAO, io.github.vprodc83.gamecatalog.ui.sortItems(m, col, "console"), "", "", "console")
+        println(porConsole)
+        assertTrue(porConsole, porConsole.startsWith("*" + io.github.vprodc83.gamecatalog.ui.tr(Lista.COLECAO.titulo) + "* — " + io.github.vprodc83.gamecatalog.ui.tr("{0} jogo(s)", 3)))
+        assertTrue(porConsole, porConsole.contains("• Super Mario World (USA · CIB)") || porConsole.contains("• Super Mario World (USA)"))
+        assertTrue(porConsole, porConsole.indexOf("Sonic") < porConsole.indexOf("Rockman") && porConsole.indexOf("Rockman") < porConsole.indexOf("Mario"))
+        val snes = col.filter { it.console == "SNES" }
+        val filtrado = io.github.vprodc83.gamecatalog.ui.textoParaCopiar(m, Lista.COLECAO, snes, "", "SNES", "az")
+        println(filtrado)
+        assertTrue(filtrado, filtrado.contains("_" + io.github.vprodc83.gamecatalog.ui.tr("Console: {0}", "").trim()) && !filtrado.contains("Sonic") && filtrado.lines().last().startsWith("• Super Mario World ("))
+    }
+
     @Test fun ficha() { val m = seed(); shot("2-ficha") { DetailScreen(m, m.repo.state.value.of(Lista.COLECAO)[1]) {} } }
     @Test fun identificar() { val m = seed(); shot("3-identificar") { IdentifyScreen(m) {} } }
     @Test fun ajustes() { val m = seed(); shot("4-ajustes") { SettingsScreen(m, {}, {}, {}) } }

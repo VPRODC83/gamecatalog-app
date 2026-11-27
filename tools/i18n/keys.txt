@@ -432,3 +432,8 @@ Você já tem este jogo loose ({0}); este seria um upgrade para CIB.
 Você já tem este jogo CIB ({0}); este loose seria uma cópia a mais.
 Criar as colunas CIB? e LOOSE? na aba {0} (colunas I e J) para guardar a condição
 Não consegui criar as colunas CIB? e LOOSE? ({0}); a condição foi na observação.
+Copiar lista
+Lista copiada. É só colar no WhatsApp.
+comprado em {0}
+Console: {0}
+Busca: "{0}"
